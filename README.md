@@ -1,11 +1,10 @@
 # POSCuenca
 
 Capa visual y contable sobre Loyverse, pensada para vender a negocios de
-retail en Cuenca, Ecuador. Fork de [Olimpo Control](https://github.com/jfcarpiopuntocom/Olimpo-Control)
-(el piloto hecho para un negocio específico) sin marca de cliente, para
-evolucionar como producto propio multi-cliente.
+retail en Cuenca, Ecuador. Producto propio multi-cliente, sin marca de
+ningún negocio individual.
 
-## Estado actual (heredado de Olimpo Control)
+## Estado actual
 
 - Backend Express, capa única de datos en `data.js` que usa Loyverse real
   (`LOYVERSE_TOKEN` configurado) o datos de demo locales si no hay token.

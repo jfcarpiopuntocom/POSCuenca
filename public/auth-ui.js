@@ -48,7 +48,7 @@
   }
 
   let rol = null; // "dueno" | "empleado"
-  let listo = window.OCSecure.migrarSiHaceFalta(); // promesa: migra oc_auth viejo (si existe) sin perder lo que José ya configuró
+  let listo = window.OCSecure.migrarSiHaceFalta(); // promesa: migra oc_auth viejo (si existe) sin perder lo que el propietario ya configuró
 
   // ---------------------------------------------------------------------------
   // BLOQUEO POR FUERZA BRUTA (tronco 1 del árbol de problemas, JFC 2026-06-30)
@@ -111,7 +111,6 @@
     border:2px solid var(--brass,#9c7a35);background:transparent;color:var(--blanco-calido,#fbf5e8);
     cursor:pointer;text-transform:uppercase;}
   body.rol-empleado nav button[data-vista="avanzado"],
-  body.rol-empleado nav button[data-vista="actividad"],
   body.rol-empleado nav button[data-vista="liquidaciones"]{display:none!important;}
   #oc-acct-lock{text-align:center;padding:22px;}
   #oc-acct-lock button{font-family:var(--font-display,sans-serif);font-size:14px;padding:12px 20px;

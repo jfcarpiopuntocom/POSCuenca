@@ -57,4 +57,16 @@ const productos = [
 
 const configuracion = { gastosMensuales: { centro: 0, mercado: 0, feria: 0 } };
 
-module.exports = { ubicaciones, productos, configuracion };
+// Promotores/embajadores (JFC, 2026-07-01): personas independientes de la
+// ubicación (no son "el socio del local", son alguien que trae clientela y
+// gana comisión por venta atendida). Un promotor puede trabajar en varios
+// locales/mostradores a la vez — por eso ubicacionesIds es un arreglo, no un
+// solo id. La comisión del promotor se calcula SOBRE LA MISMA venta que ya
+// tiene su split dueño/socio — ver calcularSplitVenta() en data.js — y sale
+// del lado del dueño (montoNetoDueno se reduce), nunca del socio del local.
+const promotores = [
+  { id: "prom-ana", nombre: "Ana Quezada", comisionPct: 8, activo: true, ubicacionesIds: ["centro", "feria"] },
+  { id: "prom-luis", nombre: "Luis Delgado", comisionPct: 10, activo: true, ubicacionesIds: ["mercado"] },
+];
+
+module.exports = { ubicaciones, productos, configuracion, promotores };

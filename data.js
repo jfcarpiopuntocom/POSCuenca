@@ -54,7 +54,7 @@ if (MODO_LOYVERSE) {
 
     // Revenue sharing e inventario compartido dependen de datos de venta que
     // en este modo vienen de Loyverse (sin campos de split/comisión propios
-    // todavía) — no implementado hasta que José conecte su cuenta y se
+    // todavía) — no implementado hasta que el propietario conecte su cuenta y se
     // decida cómo mapear esto sobre su catálogo real.
     getLiquidaciones() { return []; },
     async marcarLiquidado() { return { error: "No disponible en modo Loyverse todavía." }; },
@@ -91,7 +91,7 @@ if (MODO_LOYVERSE) {
     // verdad del inventario en este modo); acá solo se lee y refleja. Si en
     // el futuro se quiere crear desde POSCuenca, hay que llamar al
     // endpoint de creación de items de la API de Loyverse — no implementado
-    // todavía porque José aún no ha conectado su cuenta real.
+    // todavía porque el propietario aún no ha conectado su cuenta real.
     async crearProducto() {
       return { error: "Con Loyverse conectado, da de alta productos nuevos directamente en Loyverse — POSCuenca los reflejará automáticamente." };
     },
@@ -197,19 +197,108 @@ function comisionVigente(ubicacion, acumuladoConEstaVenta) {
   const tier = escalasOrdenadas.find((e) => pctMeta <= e.hasta) || escalasOrdenadas[escalasOrdenadas.length - 1];
   return Number(tier.comision) || 0;
 }
-// Calcula el split de una venta para ubicaciones no-propias. Devuelve null
-// para ubicaciones "propio" (100% es del dueño, no hay nada que repartir).
-function calcularSplitVenta(ubicacion, montoBruto, acumuladoPrevio) {
-  if (!ubicacion || ubicacion.tipo === "propio" || !ubicacion.tipo) return null;
-  const acumuladoConEsta = acumuladoPrevio + montoBruto;
-  const comisionPct = comisionVigente(ubicacion, acumuladoConEsta);
-  const montoComisionSocio = Number((montoBruto * (comisionPct / 100)).toFixed(2));
+// Calcula el split de una venta. Dos comisiones INDEPENDIENTES pueden
+// aplicar a la misma venta: la del socio del local (por tipo de ubicación,
+// como antes) y la de un promotor/embajador (por persona, sin importar el
+// tipo de ubicación — un promotor puede traer clientela incluso a un local
+// "propio"). Ambas salen del lado del dueño; nunca se restan entre sí.
+// Devuelve null solo si NO aplica ninguna de las dos (ubicación propia sin
+// promotor asignado a esa venta) — no hay nada que repartir.
+function calcularSplitVenta(ubicacion, montoBruto, acumuladoPrevio, promotor) {
+  const esSocio = !!(ubicacion && ubicacion.tipo && ubicacion.tipo !== "propio");
+  let comisionPct = 0, montoComisionSocio = 0;
+  if (esSocio) {
+    const acumuladoConEsta = acumuladoPrevio + montoBruto;
+    comisionPct = comisionVigente(ubicacion, acumuladoConEsta);
+    montoComisionSocio = Number((montoBruto * (comisionPct / 100)).toFixed(2));
+  }
+  let comisionPromotorPct = 0, montoComisionPromotor = 0;
+  if (promotor && promotor.activo) {
+    comisionPromotorPct = Number(promotor.comisionPct) || 0;
+    montoComisionPromotor = Number((montoBruto * (comisionPromotorPct / 100)).toFixed(2));
+  }
+  if (!esSocio && !promotor) return null;
   return {
     comisionPct,
     montoBruto: Number(montoBruto.toFixed(2)),
     montoComisionSocio,
-    montoNetoDueno: Number((montoBruto - montoComisionSocio).toFixed(2)),
+    promotorId: promotor ? promotor.id : null,
+    promotorNombre: promotor ? promotor.nombre : null,
+    comisionPromotorPct,
+    montoComisionPromotor,
+    montoNetoDueno: Number((montoBruto - montoComisionSocio - montoComisionPromotor).toFixed(2)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// PROMOTORES / EMBAJADORES (JFC, 2026-07-01)
+// ---------------------------------------------------------------------------
+// Independientes de la ubicación: un promotor puede trabajar en varios
+// locales/mostradores a la vez (ubicacionesIds es un arreglo). La comisión
+// es un % plano por venta que atendió — no usa escalas por meta como el
+// socio, porque un promotor no tiene "su" local con una meta propia; podría
+// agregarse después si hace falta, pero hoy sería sobre-ingeniería.
+function getPromotores(soloActivos = false) {
+  const todos = db.get("promotores").value() || [];
+  return soloActivos ? todos.filter((p) => p.activo !== false) : todos;
+}
+function getPromotoresDeUbicacion(ubicacionId) {
+  return getPromotores(true).filter((p) => (p.ubicacionesIds || []).includes(ubicacionId));
+}
+function crearPromotor({ nombre, comisionPct, ubicacionesIds }) {
+  if (!nombre || !nombre.trim()) return { error: "El nombre del promotor es obligatorio." };
+  const pct = Number(comisionPct);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return { error: "La comisión debe ser un número entre 0 y 100." };
+  const p = { id: randomUUID(), nombre: nombre.trim(), comisionPct: pct, activo: true, ubicacionesIds: Array.isArray(ubicacionesIds) ? ubicacionesIds : [] };
+  db.get("promotores").push(p).write();
+  registrarMovimiento("promotor-alta", { promotor: p.nombre });
+  return p;
+}
+function actualizarPromotor(id, { nombre, comisionPct, ubicacionesIds }) {
+  const p = db.get("promotores").find({ id }).value();
+  if (!p) return { error: "Promotor no encontrado." };
+  const cambios = {};
+  if (nombre && nombre.trim()) cambios.nombre = nombre.trim();
+  if (comisionPct != null) {
+    const pct = Number(comisionPct);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) return { error: "La comisión debe ser un número entre 0 y 100." };
+    cambios.comisionPct = pct;
+  }
+  if (Array.isArray(ubicacionesIds)) cambios.ubicacionesIds = ubicacionesIds;
+  db.get("promotores").find({ id }).assign(cambios).write();
+  return db.get("promotores").find({ id }).value();
+}
+function setActivoPromotor(id, activo) {
+  const p = db.get("promotores").find({ id }).value();
+  if (!p) return { error: "Promotor no encontrado." };
+  db.get("promotores").find({ id }).assign({ activo: !!activo }).write();
+  return db.get("promotores").find({ id }).value();
+}
+// Comisiones acumuladas del mes por promotor (para Liquidaciones) — misma
+// idea que getLiquidaciones() pero agrupado por persona, no por local,
+// porque un promotor puede haber vendido en varios locales este mes.
+function getComisionesPromotores() {
+  const promotores = getPromotores(false);
+  return promotores.map((prom) => {
+    const ventasMes = db.get("ventas").value().filter((v) => esDelMesActual(v.fecha) && v.split && v.split.promotorId === prom.id);
+    const ventasBrutas = ventasMes.reduce((a, v) => a + v.split.montoBruto, 0);
+    const comision = ventasMes.reduce((a, v) => a + v.split.montoComisionPromotor, 0);
+    const pendientes = ventasMes.filter((v) => !v.liquidadaPromotor);
+    return {
+      promotorId: prom.id, promotor: prom.nombre, activo: prom.activo !== false, comisionPct: prom.comisionPct,
+      ubicaciones: (prom.ubicacionesIds || []).map((id) => (db.get("ubicaciones").find({ id }).value() || {}).nombre).filter(Boolean),
+      ventasAtendidas: ventasMes.length, ventasBrutas: Number(ventasBrutas.toFixed(2)), comision: Number(comision.toFixed(2)),
+      estado: ventasMes.length === 0 ? "sin ventas" : pendientes.length === 0 ? "pagado" : "pendiente",
+    };
+  });
+}
+function marcarLiquidadoPromotor(promotorId) {
+  const prom = db.get("promotores").find({ id: promotorId }).value();
+  if (!prom) return { error: "Promotor no encontrado." };
+  const ventas = db.get("ventas").value().filter((v) => esDelMesActual(v.fecha) && v.split && v.split.promotorId === promotorId && !v.liquidadaPromotor);
+  ventas.forEach((v) => db.get("ventas").find({ id: v.id }).assign({ liquidadaPromotor: true }).write());
+  registrarMovimiento("liquidacion-promotor", { promotor: prom.nombre, ventasLiquidadas: ventas.length });
+  return { ok: true, ventasLiquidadas: ventas.length };
 }
 
 // Vista "Liquidaciones": una fila por ubicación no-propia, con lo vendido
@@ -460,12 +549,18 @@ function importarTodo(datos) {
       return p;
     },
 
-    async venderUno(id, cantidad) {
+    async venderUno(id, cantidad, promotorId) {
       const p = db.get("productos").find({ id }).value();
       if (!p) return { error: "Producto no encontrado." };
       const ubic = db.get("ubicaciones").find({ id: p.ubicacionId }).value();
       if (ubic && ubic.activa === false) return { error: `"${ubic.nombre}" está desactivada — no admite ventas nuevas.` };
       if (p.stockActual < cantidad) return { error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` };
+      let promotor = null;
+      if (promotorId) {
+        promotor = db.get("promotores").find({ id: promotorId }).value();
+        if (!promotor || promotor.activo === false) return { error: "Ese promotor no existe o está desactivado." };
+        if (!(promotor.ubicacionesIds || []).includes(p.ubicacionId)) return { error: `"${promotor.nombre}" no está asignado a esta ubicación.` };
+      }
 
       const ventaId = randomUUID();
       const montoBruto = p.precio * cantidad;
@@ -474,10 +569,10 @@ function importarTodo(datos) {
       // CONGELADO dentro de la venta — si luego cambian las escalas o la
       // meta, las ventas ya hechas no se recalculan con reglas nuevas.
       const acumuladoPrevio = ubic ? ventasMesAcumuladas(ubic.id) : 0;
-      const split = ubic ? calcularSplitVenta(ubic, montoBruto, acumuladoPrevio) : null;
+      const split = calcularSplitVenta(ubic, montoBruto, acumuladoPrevio, promotor);
       db.get("productos").find({ id }).assign({ stockActual: p.stockActual - cantidad }).write();
       db.get("ventas")
-        .push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString(), split, liquidada: false })
+        .push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString(), split, liquidada: false, liquidadaPromotor: false })
         .write();
       registrarMovimiento("venta", {
         producto: p.nombre,
@@ -546,5 +641,12 @@ function importarTodo(datos) {
     aprobarTransferencia,
     confirmarRecepcionTransferencia,
     rechazarTransferencia,
+    getPromotores,
+    getPromotoresDeUbicacion,
+    crearPromotor,
+    actualizarPromotor,
+    setActivoPromotor,
+    getComisionesPromotores,
+    marcarLiquidadoPromotor,
   };
 }

@@ -45,6 +45,22 @@
       if (wrap) cont.appendChild(wrap);
     });
 
+    // --- Descarga formal para el contador (JFC, 2026-07-01) ---
+    // CSV (no JSON) porque un contador real lo abre en Excel/Sheets, no en un
+    // editor de código. Incluye el desglose de IVA que pidió JFC. A propósito
+    // NO se presenta como una declaración válida ante el SRI — es un insumo
+    // limpio para que el contador humano haga su trabajo, la responsabilidad
+    // de declarar sigue siendo de él.
+    const descargaBox = document.createElement("div");
+    descargaBox.className = "tag-card";
+    descargaBox.style.cssText = "text-align:left;margin-top:22px;";
+    descargaBox.innerHTML = `
+      <h3 class="seccion" style="margin-top:0;">Reporte para el contador</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">P&amp;G, balance e inventario valorizado en un solo archivo, listo para Excel. No es una declaración ante el SRI — es el insumo para que tu contador la prepare.</p>
+      <button id="oc-descargar-csv" class="ir" style="background:var(--azul-medio);color:var(--blanco-calido);border-color:var(--azul-oscuro);">📄 Descargar reporte contable (.csv)</button>
+    `;
+    cont.appendChild(descargaBox);
+
     // --- Respaldo exportable/importable (tronco 3, JFC 2026-07-01) ---
     // Vive DENTRO de "cont" (detrás de la subclave contable): exportar/
     // importar el negocio completo es una acción sensible, no debe estar al
@@ -186,6 +202,45 @@
       msg("oc-codes-msg", "Claves guardadas y cifradas.", "var(--verde)");
     });
 
+    $("oc-descargar-csv").addEventListener("click", async () => {
+      const u = ubic();
+      const [pl, bal, val] = await Promise.all([
+        fetch(`${API}/reportes/pl?ubicacionId=${u}`).then((r) => r.json()),
+        fetch(`${API}/reportes/balance?ubicacionId=${u}`).then((r) => r.json()),
+        fetch(`${API}/reportes/valorizado?ubicacionId=${u}`).then((r) => r.json()),
+      ]);
+      const fila = (a, b) => `"${a}","${b}"`;
+      const filas = [
+        fila("Reporte contable — POSCuenca", new Date().toLocaleString("es-EC")),
+        fila("AVISO", "Insumo para el contador. No es una declaración válida ante el SRI."),
+        fila("", ""),
+        fila("PÉRDIDAS Y GANANCIAS (hoy)", ""),
+        fila("Ventas cobradas (con IVA)", money(pl.ingresosConIva)),
+        fila("IVA cobrado (15%, se liquida al SRI)", money(pl.ivaCobrado)),
+        fila("Ingresos netos (sin IVA)", money(pl.ingresos)),
+        fila("Costo de ventas", money(pl.costoVentas)),
+        fila("Utilidad bruta", money(pl.utilidadBruta)),
+        fila("Gastos operativos", money(pl.gastosOperativos)),
+        fila("Utilidad neta", money(pl.utilidadNeta)),
+        fila("", ""),
+        fila("BALANCE SIMPLIFICADO", ""),
+        fila("Ingresos del día estimados", money(bal.activos.efectivoEstimado)),
+        fila("Inventario valorizado", money(bal.activos.inventarioValorizado)),
+        fila("Total activos", money(bal.activos.total)),
+        fila("", ""),
+        fila("INVENTARIO VALORIZADO POR PRODUCTO", ""),
+        fila("Producto", "Stock,Costo,Venta,Utilidad potencial"),
+        ...val.productos.map((p) => fila(p.nombre, `${p.stockActual},${money(p.valorCosto)},${money(p.valorVenta)},${money(p.utilidadPotencial)}`)),
+      ];
+      const csv = "﻿" + filas.join("\n"); // BOM para que Excel abra tildes bien
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `reporte-contable-poscuenca-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
     // El respaldo incluye TANTO los datos del negocio (server/mock, vía
     // /api/respaldo/exportar) COMO el estado de acceso cifrado
     // (localStorage["oc_secure"]: hashes de PIN + correo) — sin esto último,
@@ -197,7 +252,7 @@
         const blob = new Blob([JSON.stringify(paquete, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `respaldo-olimpo-control-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `respaldo-poscuenca-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(a.href);
         msg("oc-respaldo-msg", "Respaldo descargado. Guárdalo en un lugar seguro.", "var(--verde)");
@@ -355,10 +410,13 @@
       fetch(`${API}/reportes/pl?ubicacionId=${u}`).then((r) => r.json()),
       fetch(`${API}/reportes/balance?ubicacionId=${u}`).then((r) => r.json()),
     ]);
-    // Cuentas T derivadas del día (partida doble simplificada)
+    // Cuentas T derivadas del día (partida doble simplificada). El IVA
+    // cobrado NO es ingreso del negocio — es un pasivo (se le debe al SRI),
+    // por eso tiene su propia cuenta en vez de mezclarse con Ventas.
     const cuentas = [
-      { nombre: "Caja (Activo)", debe: [["Ventas del día", pl.ingresos]], haber: [["Gastos operativos", pl.gastosOperativos]] },
-      { nombre: "Ventas (Ingreso)", debe: [], haber: [["Ingresos del día", pl.ingresos]] },
+      { nombre: "Caja (Activo)", debe: [["Cobrado hoy (con IVA)", pl.ingresosConIva]], haber: [["Gastos operativos", pl.gastosOperativos]] },
+      { nombre: "Ventas (Ingreso)", debe: [], haber: [["Ingresos netos del día", pl.ingresos]] },
+      { nombre: "IVA por Pagar (Pasivo)", debe: [], haber: [["IVA cobrado hoy (15%)", pl.ivaCobrado]] },
       { nombre: "Costo de Ventas (Gasto)", debe: [["Costo de lo vendido", pl.costoVentas]], haber: [] },
       { nombre: "Inventario (Activo)", debe: [["Saldo valorizado", bal.activos.inventarioValorizado]], haber: [["Salida por ventas", pl.costoVentas]] },
       { nombre: "Gastos Operativos (Gasto)", debe: [["Prorrateo del día", pl.gastosOperativos]], haber: [] },

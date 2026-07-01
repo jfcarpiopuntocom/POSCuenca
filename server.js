@@ -224,7 +224,7 @@ app.post("/api/productos", asyncRoute(async (req, res) => {
   res.json(await toFicha(r));
 }));
 
-// --- Umbrales (puntos de reorden, editables por José/admin) ---
+// --- Umbrales (puntos de reorden, editables por el propietario/admin) ---
 app.post("/api/productos/:id/umbrales", asyncRoute(async (req, res) => {
   const p = await data.getProducto(req.params.id);
   if (!p) return res.status(404).json({ error: "Producto no encontrado." });
@@ -360,20 +360,33 @@ app.post("/api/configuracion/gastos", asyncRoute(async (req, res) => {
 }));
 
 // --- Reportes (modo avanzado) ---
+// IVA Ecuador: 15% (tarifa vigente 2026). Los precios de venta al público se
+// asumen CON IVA incluido (así se muestran los precios al consumidor en
+// Ecuador) — el IVA cobrado no es ingreso del negocio, es un valor que se
+// cobra por cuenta del SRI y se le liquida a fin de mes. Separarlo aquí es
+// lo que pidió JFC ("adaptado a estándares contables y legislación SRI").
+// OJO: esto NO es una declaración de impuestos válida ante el SRI — es un
+// resumen para que el contador humano trabaje con datos limpios. La
+// responsabilidad de la declaración sigue siendo del contador.
+const IVA_ECUADOR = 0.15;
 app.get("/api/reportes/pl", asyncRoute(async (req, res) => {
   const { ubicacionId } = req.query;
   const ventasHoy = await data.getVentasHoy(ubicacionId, hoyISO());
 
-  const ingresos = ventasHoy.reduce((acc, v) => acc + v.precioUnit * v.cantidad, 0);
+  const ingresosConIva = ventasHoy.reduce((acc, v) => acc + v.precioUnit * v.cantidad, 0);
+  const ingresosNetos = ingresosConIva / (1 + IVA_ECUADOR);
+  const ivaCobrado = ingresosConIva - ingresosNetos;
   const costoVentas = ventasHoy.reduce((acc, v) => acc + v.costoUnit * v.cantidad, 0);
-  const utilidadBruta = ingresos - costoVentas;
+  const utilidadBruta = ingresosNetos - costoVentas;
 
   const { gastosMensuales } = data.getGastosMensuales(ubicacionId);
   const gastosOperativos = Number((gastosMensuales / diasEnMesActual()).toFixed(2));
   const utilidadNeta = utilidadBruta - gastosOperativos;
 
   res.json({
-    ingresos: Number(ingresos.toFixed(2)),
+    ingresosConIva: Number(ingresosConIva.toFixed(2)),
+    ingresos: Number(ingresosNetos.toFixed(2)),
+    ivaCobrado: Number(ivaCobrado.toFixed(2)),
     costoVentas: Number(costoVentas.toFixed(2)),
     utilidadBruta: Number(utilidadBruta.toFixed(2)),
     gastosOperativos,

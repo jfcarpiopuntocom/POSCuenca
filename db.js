@@ -20,8 +20,8 @@ const db = low(adapter);
 // --- Datos semilla (solo se usan la primera vez que arranca el servidor) ---
 // Tienda de artesanías y licores de Cuenca. Definido en seed-data.js para
 // mantenerse sincronizado con la demo estática (public/mock-backend.js).
-const { ubicaciones, productos, configuracion } = require("./seed-data");
-const seed = { ubicaciones, productos, ventas: [], movimientos: [], transferencias: [], configuracion };
+const { ubicaciones, productos, configuracion, promotores } = require("./seed-data");
+const seed = { ubicaciones, productos, ventas: [], movimientos: [], transferencias: [], promotores, configuracion };
 
 db.defaults(seed).write();
 

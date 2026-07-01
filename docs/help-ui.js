@@ -7,12 +7,10 @@
 // auth-ui.js (escucha el evento "oc-login" para saber qué rol mostrar y para
 // encontrar el botón #oc-logout, debajo del cual se inserta este enlace).
 //
-// FEATURE — DORMANT (desactivado por JFC, 2026-06-30: "es optativo y se
-// mantiene off, es apenas recursivo"). El código queda intacto y listo, solo
-// no se muestra. Para REACTIVAR: cambiar AYUDA_HABILITADA a true. NO BORRAR
-// el resto del archivo.
+// REACTIVADO 2026-07-01 (JFC): indispensable, sobre todo con el timeout de
+// inactividad activo. NUNCA quitar/ocultar sin que JFC lo pida en el mismo turno.
 (function () {
-  const AYUDA_HABILITADA = false;
+  const AYUDA_HABILITADA = true;
   if (!AYUDA_HABILITADA) return;
 
   const css = document.createElement("style");
