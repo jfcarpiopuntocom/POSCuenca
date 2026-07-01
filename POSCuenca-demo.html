@@ -787,7 +787,7 @@
   <section id="vista-avanzado" class="vista">
     <h3 class="seccion" style="margin-top:0;">Modo avanzado</h3>
     <div class="avanzado-aviso">
-      Esta sección es para el contador, el administrador o quien quiera ver el detalle técnico. José no la necesita para operar el día a día.
+      Esta sección es para el contador, el administrador o quien quiera ver el detalle técnico. El propietario no la necesita para operar el día a día.
     </div>
 
     <h3 class="seccion" style="margin-top:0;">Gastos mensuales</h3>
@@ -2018,7 +2018,7 @@ const MASTER_CODE_DEFAULT = "POSCUENCA-MAESTRO-2026";
   function randSalt() { return b64(crypto.getRandomValues(new Uint8Array(16))); }
 
   // ---- migración silenciosa desde el formato viejo en texto plano (oc_auth) ----
-  // Si José ya había configurado sus claves/correo antes de este cambio, NO se
+  // Si el propietario ya había configurado sus claves/correo antes de este cambio, NO se
   // pierden ni se resetean: se migran tal cual a oc_secure en el primer load.
   async function migrarSiHaceFalta() {
     if (localStorage.getItem("oc_secure")) return;
@@ -2267,7 +2267,7 @@ const EMAILJS_CONFIG = {
   }
 
   let rol = null; // "dueno" | "empleado"
-  let listo = window.OCSecure.migrarSiHaceFalta(); // promesa: migra oc_auth viejo (si existe) sin perder lo que José ya configuró
+  let listo = window.OCSecure.migrarSiHaceFalta(); // promesa: migra oc_auth viejo (si existe) sin perder lo que el propietario ya configuró
 
   // ---------------------------------------------------------------------------
   // BLOQUEO POR FUERZA BRUTA (tronco 1 del árbol de problemas, JFC 2026-06-30)
