@@ -150,15 +150,37 @@
     margin-top:3px;
     text-transform:uppercase;
   }
+  /* Wrapper del selector: label + select apilados, alineados a la derecha
+     del header. El label "Sucursal / percha" orienta al usuario sin ocupar
+     espacio de la marca izquierda. */
+  .selector-ubicacion{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:3px;
+    flex-shrink:0;
+  }
+  .selector-ubicacion label{
+    font-family:var(--font-body);
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:0.07em;
+    text-transform:uppercase;
+    color:#CCCCCC;
+    -webkit-text-fill-color:#CCCCCC;
+  }
   .selector-ubicacion select{
     font-family:var(--font-display);
     font-weight:600;
     font-size:14px;
-    padding:10px 14px;
+    padding:8px 12px;
     border-radius:5px;
     border:2px solid var(--brass);
     background:var(--blanco-calido);
     color:var(--azul-oscuro);
+    -webkit-text-fill-color:var(--azul-oscuro);
+    cursor:pointer;
+    max-width:180px;
   }
 
   /* ================= NAV — barra inferior en móvil, riel lateral en tablet/desktop ================= */
@@ -684,6 +706,7 @@
     </div>
   </div>
   <div class="selector-ubicacion">
+    <label for="selectUbicacion">Sucursal / percha</label>
     <select id="selectUbicacion"></select>
   </div>
 </header>
@@ -837,7 +860,7 @@
 
 <footer>
   <em>Amigable: punto de venta y control de inventarios</em>
-  <br>desarrollado por The Real Urban Shaman - 2026
+  <br><a href="https://jfcarpio.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">jfcarpio.com</a> — 2026
 </footer>
 
 <!-- MODAL ETIQUETA -->
