@@ -1811,11 +1811,12 @@ const EMAILJS_CONFIG = {
 //   directamente.
 // ===========================================================================
 (function () {
-  // Pool de emojis de adorno. Se barajan; ninguno está atado a un dígito fijo.
+  // Pool de emojis de adorno — emojis de oficina/negocios, apropiados para
+  // un sistema contable y de inventarios. Retrocompatibles: PINs numéricos.
   const EMOJI_POOL = [
-    "🍊", "🔥", "🌵", "🐉", "🌊", "🍀", "⭐", "🌙", "☀️", "🦜",
-    "🐢", "🦋", "🌶️", "🍋", "🫐", "🎸", "🥁", "🎺", "🏔️", "🛶",
-    "🚲", "🏍️", "🔑", "🌻", "🐬", "🍄",
+    "💼", "📊", "📋", "📁", "🗂️", "📌", "📎", "📝", "🖊️", "✏️",
+    "🔑", "🔒", "💰", "📦", "🏷️", "⚖️", "🔍", "🖨️", "📞", "📱",
+    "🏢", "💡", "⏰", "📅", "🗓️", "💳",
   ];
 
   // Fisher-Yates: baraja una copia del arreglo (no muta el original).

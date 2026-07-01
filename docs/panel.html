@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<!-- panel.html — Panel General de Operaciones POSCuenca (JFC, master admin)
+     Acceso: jfcarpiopuntocom.github.io/POSCuenca/panel.html
+     Este archivo NO es público: su URL no aparece en ningún lugar de la app
+     demo ni en la landing. JFC lo tiene guardado personalmente.
+     Propósito: ver todos los clientes activos, acceder a sus instancias,
+     y a futuro gestionar facturación, recuperaciones, etc.
+     v0.1 — 2026-07-01 — creado por solicitud de JFC -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Panel General — POSCuenca</title>
+<style>
+  /* Fuentes nativas — sin Google Fonts para cargar instantáneo */
+  :root{
+    --bg:#0f1117;
+    --surface:#1a1e2a;
+    --surface2:#222736;
+    --border:#2e3448;
+    --gold:#c9953a;
+    --gold-dim:#8a651f;
+    --green:#28c98a;
+    --green-dim:#1a7a52;
+    --amber:#d4832a;
+    --red:#c94040;
+    --ink:#e8e4dc;
+    --ink-soft:#9a95a0;
+    --ink-dim:#5a566a;
+    --font:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+    --mono:"Cascadia Code","JetBrains Mono","Consolas",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ── Topbar ── */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 28px;
+    border-bottom:1px solid var(--border);
+    background:var(--surface);
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  .topbar-brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .topbar-sello{
+    width:36px;height:36px;
+    border-radius:8px;
+    background:var(--gold);
+    color:#000;
+    font-weight:800;
+    font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+    letter-spacing:-0.5px;
+    flex-shrink:0;
+  }
+  .topbar-brand h1{
+    font-size:16px;
+    font-weight:700;
+    color:var(--ink);
+    letter-spacing:0.01em;
+  }
+  .topbar-brand .role{
+    font-size:11px;
+    color:var(--ink-soft);
+    font-family:var(--mono);
+    margin-top:2px;
+  }
+  .topbar-status{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-size:12px;
+    color:var(--green);
+    font-family:var(--mono);
+  }
+  .dot{
+    width:7px;height:7px;
+    border-radius:50%;
+    background:var(--green);
+    animation:pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  /* ── Layout ── */
+  main{
+    max-width:960px;
+    margin:0 auto;
+    padding:32px 24px 64px;
+  }
+
+  /* ── Sección heading ── */
+  .section-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:16px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .section-head h2{
+    font-size:13px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--ink-soft);
+  }
+  .section-head .count{
+    font-size:12px;
+    font-family:var(--mono);
+    color:var(--ink-dim);
+  }
+
+  /* ── Grilla de clientes ── */
+  .clientes-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+    gap:16px;
+    margin-bottom:48px;
+  }
+
+  /* ── Tarjeta de cliente ── */
+  .client-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    transition:border-color .18s;
+  }
+  .client-card:hover{border-color:var(--gold-dim);}
+  .client-card.demo{border-left:3px solid var(--amber);}
+  .client-card.activo{border-left:3px solid var(--green);}
+  .client-card.inactivo{border-left:3px solid var(--ink-dim);opacity:.6;}
+
+  .client-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .client-nombre{
+    font-size:16px;
+    font-weight:700;
+    color:var(--ink);
+    line-height:1.3;
+  }
+  .client-tipo{
+    font-size:10px;
+    font-family:var(--mono);
+    font-weight:600;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border-radius:4px;
+    flex-shrink:0;
+  }
+  .badge-demo{background:rgba(212,131,42,0.18);color:var(--amber);}
+  .badge-activo{background:rgba(40,201,138,0.15);color:var(--green);}
+  .badge-inactivo{background:rgba(90,86,106,0.2);color:var(--ink-dim);}
+
+  .client-desc{
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.5;
+  }
+  .client-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .meta-item{
+    font-size:11px;
+    font-family:var(--mono);
+    color:var(--ink-dim);
+    background:var(--surface2);
+    padding:3px 8px;
+    border-radius:4px;
+  }
+  .client-actions{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:4px;
+  }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:8px 14px;
+    border-radius:6px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    text-decoration:none;
+    border:1px solid transparent;
+    transition:opacity .15s;
+  }
+  .btn:hover{opacity:.82;}
+  .btn-primary{
+    background:var(--gold);
+    color:#000;
+  }
+  .btn-outline{
+    background:transparent;
+    border-color:var(--border);
+    color:var(--ink-soft);
+  }
+  .btn-outline:hover{border-color:var(--gold-dim);color:var(--ink);}
+
+  /* ── Tarjeta de "agregar nuevo" ── */
+  .client-card.nuevo{
+    border:1px dashed var(--border);
+    background:transparent;
+    align-items:center;
+    justify-content:center;
+    min-height:160px;
+    color:var(--ink-dim);
+    cursor:default;
+    gap:8px;
+  }
+  .client-card.nuevo .plus{
+    font-size:28px;
+    line-height:1;
+    color:var(--border);
+  }
+  .client-card.nuevo .nuevo-label{
+    font-size:13px;
+    text-align:center;
+    color:var(--ink-dim);
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+    gap:12px;
+    margin-bottom:40px;
+  }
+  .stat-box{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:16px 18px;
+  }
+  .stat-value{
+    font-size:28px;
+    font-weight:700;
+    font-family:var(--mono);
+    color:var(--ink);
+    line-height:1.1;
+  }
+  .stat-label{
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:4px;
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+  }
+
+  /* ── Footer ── */
+  footer{
+    text-align:center;
+    font-size:11px;
+    color:var(--ink-dim);
+    font-family:var(--mono);
+    padding:32px 24px 16px;
+    border-top:1px solid var(--border);
+    margin-top:32px;
+  }
+  footer em{
+    font-style:italic;
+    color:var(--gold-dim);
+  }
+
+  @media(max-width:560px){
+    .topbar{padding:12px 16px;}
+    main{padding:20px 14px 48px;}
+    .stats-bar{grid-template-columns:1fr 1fr;}
+    .stat-value{font-size:22px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR — identidad y estado -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-sello">PC</div>
+    <div>
+      <h1>POSCuenca — Panel General</h1>
+      <div class="role">Master Admin · acceso privado</div>
+    </div>
+  </div>
+  <div class="topbar-status">
+    <div class="dot"></div>
+    <span id="status-label">Sistema en línea</span>
+  </div>
+</div>
+
+<main>
+
+  <!-- STATS RÁPIDAS (actualizadas manualmente o via JS a futuro) -->
+  <div class="section-head" style="margin-bottom:12px;">
+    <h2>Resumen</h2>
+    <span class="count" id="fecha-panel"></span>
+  </div>
+  <div class="stats-bar" style="margin-bottom:36px;">
+    <div class="stat-box">
+      <div class="stat-value" id="stat-total">2</div>
+      <div class="stat-label">Proyectos totales</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="stat-activos" style="color:var(--green);">1</div>
+      <div class="stat-label">En producción</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="stat-demos" style="color:var(--amber);">1</div>
+      <div class="stat-label">En demo</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" style="color:var(--gold);">v1.0</div>
+      <div class="stat-label">Versión estable</div>
+    </div>
+  </div>
+
+  <!-- CLIENTES / INSTANCIAS -->
+  <div class="section-head">
+    <h2>Instancias activas</h2>
+    <span class="count" id="count-label"></span>
+  </div>
+  <div class="clientes-grid" id="clientes-grid">
+
+    <!-- Olimpo Control — v1.0 en producción -->
+    <div class="client-card activo">
+      <div class="client-top">
+        <div class="client-nombre">Olimpo Control</div>
+        <span class="client-tipo badge-activo">Producción</span>
+      </div>
+      <div class="client-desc">
+        Smoke shop / club · Cuenca, Ecuador.<br>
+        App completa con inventario, ventas, etiquetas, P&amp;L y cifrado end-to-end. Primera instalación piloto.
+      </div>
+      <div class="client-meta">
+        <span class="meta-item">v1.0</span>
+        <span class="meta-item">Node.js + Express</span>
+        <span class="meta-item">Loyverse-ready</span>
+        <span class="meta-item">2026-07</span>
+      </div>
+      <div class="client-actions">
+        <a class="btn btn-primary" href="https://jfcarpiopuntocom.github.io/Olimpo-Control/" target="_blank" rel="noopener">Abrir demo</a>
+        <a class="btn btn-outline" href="https://github.com/jfcarpiopuntocom/Olimpo-Control" target="_blank" rel="noopener">Repo</a>
+      </div>
+    </div>
+
+    <!-- POSCuenca — v0.99 demo -->
+    <div class="client-card demo">
+      <div class="client-top">
+        <div class="client-nombre">POSCuenca — Demo</div>
+        <span class="client-tipo badge-demo">Demo público</span>
+      </div>
+      <div class="client-desc">
+        Producto multisede / multicliente · modelo avanzado.<br>
+        Revenue sharing, promotores, FIFO/LIFO, semáforo, transferencias. Demo con datos de artesanías y licores.
+      </div>
+      <div class="client-meta">
+        <span class="meta-item">v0.99</span>
+        <span class="meta-item">Node.js + Express</span>
+        <span class="meta-item">Multi-ubicación</span>
+        <span class="meta-item">2026-07</span>
+      </div>
+      <div class="client-actions">
+        <a class="btn btn-primary" href="https://jfcarpiopuntocom.github.io/POSCuenca/" target="_blank" rel="noopener">Abrir demo</a>
+        <a class="btn btn-outline" href="https://github.com/jfcarpiopuntocom/POSCuenca" target="_blank" rel="noopener">Repo</a>
+      </div>
+    </div>
+
+    <!-- Slot para próximo cliente -->
+    <div class="client-card nuevo">
+      <div class="plus">+</div>
+      <div class="nuevo-label">Próximo cliente<br><span style="font-size:11px;font-family:var(--mono);color:var(--border);">agregar aquí</span></div>
+    </div>
+
+  </div>
+
+  <!-- NOTAS OPERATIVAS (solo visibles en este panel, no en la demo) -->
+  <div class="section-head">
+    <h2>Notas operativas</h2>
+  </div>
+  <div style="display:grid;gap:12px;">
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px;">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:8px;">Olimpo Control — Activación Loyverse</div>
+      <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;">
+        Jose debe proveer su token de API Loyverse. Una vez que lo tenga:<br>
+        1. Abre la app · entra como dueño · ve a Avanzado.<br>
+        2. Ingresa el token en "Conectar Loyverse" · guarda.<br>
+        3. Reinicia <code style="background:var(--surface2);padding:2px 5px;border-radius:3px;font-family:var(--mono);font-size:12px;">node server.js</code> en el servidor.<br>
+        Sin reinicio, el token queda guardado pero inactivo.
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px;">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:8px;">EmailJS — Recuperación de acceso</div>
+      <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;">
+        Crear cuenta en EmailJS (200 envíos/mes gratis). Llenar <code style="background:var(--surface2);padding:2px 5px;border-radius:3px;font-family:var(--mono);font-size:12px;">EMAILJS_CONFIG</code> en <code style="font-family:var(--mono);font-size:12px;">email-recovery.js</code> de cada proyecto.<br>
+        Mientras no esté configurado, el código de recuperación aparece en pantalla en vez de enviarse por correo.
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px 20px;">
+      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin-bottom:8px;">Master admin — Mi protocolo</div>
+      <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;">
+        Si un cliente pierde acceso y no tiene correo registrado:<br>
+        1. Abrir la app del cliente en mi dispositivo.<br>
+        2. Avanzado → "Cambiar correo" → ingresar <strong style="color:var(--ink);font-family:var(--mono);">OLIMPO-MAESTRO-2026</strong> (o el código del proyecto).<br>
+        3. Registrar el correo del cliente → el flujo encadena solo al reseteo de PIN.<br>
+        El server-side nuclear (777) solo si lo anterior falla — conectarse al servidor y hacer POST directo.
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<footer>
+  POSCuenca Panel General · acceso privado · no indexado<br>
+  <em>The Real Urban Shaman — 2026</em>
+</footer>
+
+<script>
+// Fecha actual en el header
+(function(){
+  const d = new Date();
+  const meses = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  document.getElementById("fecha-panel").textContent =
+    d.getDate() + " " + meses[d.getMonth()] + " " + d.getFullYear();
+
+  // Cuenta de instancias en el subtítulo
+  const cards = document.querySelectorAll(".client-card:not(.nuevo)");
+  document.getElementById("count-label").textContent = cards.length + " registradas";
+})();
+</script>
+</body>
+</html>

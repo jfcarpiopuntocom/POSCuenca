@@ -30,11 +30,14 @@
 //   directamente.
 // ===========================================================================
 (function () {
-  // Pool de emojis de adorno. Se barajan; ninguno está atado a un dígito fijo.
+  // Pool de emojis de adorno — emojis de oficina/negocios, apropiados para
+  // un sistema contable y de inventarios. Retrocompatibles: los PINs son
+  // numéricos; emojis son adorno visual barajado en cada apertura (no afectan
+  // el código almacenado ni los hashes).
   const EMOJI_POOL = [
-    "🍊", "🔥", "🌵", "🐉", "🌊", "🍀", "⭐", "🌙", "☀️", "🦜",
-    "🐢", "🦋", "🌶️", "🍋", "🫐", "🎸", "🥁", "🎺", "🏔️", "🛶",
-    "🚲", "🏍️", "🔑", "🌻", "🐬", "🍄",
+    "💼", "📊", "📋", "📁", "🗂️", "📌", "📎", "📝", "🖊️", "✏️",
+    "🔑", "🔒", "💰", "📦", "🏷️", "⚖️", "🔍", "🖨️", "📞", "📱",
+    "🏢", "💡", "⏰", "📅", "🗓️", "💳",
   ];
 
   // Fisher-Yates: baraja una copia del arreglo (no muta el original).
