@@ -297,6 +297,44 @@ app.post("/api/respaldo/importar", (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Liquidaciones (brote 1: revenue sharing) ---
+app.get("/api/liquidaciones", asyncRoute(async (req, res) => {
+  res.json(await data.getLiquidaciones());
+}));
+app.post("/api/liquidaciones/:ubicacionId/marcar-pagado", asyncRoute(async (req, res) => {
+  const r = await data.marcarLiquidado(req.params.ubicacionId);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+
+// --- Transferencias (brote 2: inventario compartido) ---
+app.get("/api/productos/:id/sugerencias-transferencia", asyncRoute(async (req, res) => {
+  res.json(await data.getSugerenciasTransferencia(req.params.id));
+}));
+app.post("/api/transferencias", asyncRoute(async (req, res) => {
+  const r = await data.crearTransferencia(req.body);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+app.get("/api/transferencias", asyncRoute(async (req, res) => {
+  res.json(await data.getTransferencias());
+}));
+app.post("/api/transferencias/:id/aprobar", asyncRoute(async (req, res) => {
+  const r = await data.aprobarTransferencia(req.params.id);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+app.post("/api/transferencias/:id/confirmar-recepcion", asyncRoute(async (req, res) => {
+  const r = await data.confirmarRecepcionTransferencia(req.params.id);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+app.post("/api/transferencias/:id/rechazar", asyncRoute(async (req, res) => {
+  const r = await data.rechazarTransferencia(req.params.id);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+
 // --- Configuración: gastos mensuales (siempre local, sin importar el modo) ---
 app.get("/api/configuracion/gastos", (req, res) => {
   res.json(data.getGastosMensuales(req.query.ubicacionId));

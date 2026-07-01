@@ -2,17 +2,32 @@
 // Fuente única de verdad para la demo. db.js y public/mock-backend.js lo importan
 // para no desincronizarse. Precios en USD (moneda de Ecuador).
 
-// Campos agregados 2026-07-01 (tronco 16 + terreno para revenue sharing):
+// Campos agregados 2026-07-01 (tronco 16):
 //   activa: bool — una ubicación desactivada conserva TODO su historial
 //     (ventas, movimientos) pero deja de aparecer en el selector operativo y
 //     no puede recibir ventas nuevas. Es un "archivar", no un borrar.
-//   tipo: "propio" | "socio" | "franquicia" | "consignacion" — determina qué
-//     campos/reportes aplican. Hoy solo se guarda; el reparto de comisiones
-//     (brote 1 del árbol) todavía no lee este campo — es terreno listo.
+//   tipo: "propio" | "socio" | "franquicia" | "consignacion".
+// Campos agregados 2026-07-01 (brotes 1 y 3 — revenue sharing dinámico):
+//   comisionSocio: % base del socio (0-100) si NO hay escalas configuradas.
+//   metaMensual: meta de ventas en USD del mes para esta ubicación.
+//   escalasComision: [{hasta:<% de meta cumplida>, comision:<%>}, ...] —
+//     ordenadas ascendente por "hasta". Cada venta se factura con la
+//     comisión de la escala vigente SEGÚN el % de meta acumulado ese mes
+//     HASTA e INCLUYENDO esa venta — así el socio ve subir su comisión en
+//     tiempo real conforme se acerca/supera la meta, no solo al cierre.
 const ubicaciones = [
   { id: "centro", nombre: "Local Centro Histórico", activa: true, tipo: "propio" },
-  { id: "mercado", nombre: "Stand Mercado 10 de Agosto", activa: true, tipo: "propio" },
-  { id: "feria", nombre: "Feria Artesanal El Otorongo", activa: true, tipo: "propio" },
+  {
+    id: "mercado", nombre: "Stand Mercado 10 de Agosto", activa: true, tipo: "socio",
+    comisionSocio: 25, metaMensual: 300,
+    escalasComision: [
+      { hasta: 80, comision: 25 },
+      { hasta: 100, comision: 30 },
+      { hasta: 120, comision: 35 },
+      { hasta: 999, comision: 40 },
+    ],
+  },
+  { id: "feria", nombre: "Feria Artesanal El Otorongo", activa: true, tipo: "consignacion", comisionSocio: 30, metaMensual: 200, escalasComision: [] },
 ];
 
 const productos = [
@@ -34,6 +49,10 @@ const productos = [
   { id: "p13", nombre: "Poncho de Lana Cañari", categoria: "Textiles", sku: "TEX-PON-001", barcode: "7861000020079", ubicacionId: "centro", precio: 55.0, costo: 28.0, stockActual: 6, umbralRojo: 3, umbralAmarillo: 6, proveedor: "Tejedoras de Sígsig" },
   { id: "p14", nombre: "Vela Aromática Artesanal", categoria: "Artesanías", sku: "VEL-ARO-001", barcode: "7861000020086", ubicacionId: "feria", precio: 6.5, costo: 2.5, stockActual: 35, umbralRojo: 10, umbralAmarillo: 20, proveedor: "Taller El Vergel" },
   { id: "p15", nombre: "Mermelada Artesanal de Mora 250g", categoria: "Gourmet", sku: "GOU-MER-250", barcode: "7861000020093", ubicacionId: "mercado", precio: 4.0, costo: 1.6, stockActual: 28, umbralRojo: 10, umbralAmarillo: 18, proveedor: "Productos del Valle", perecible: true, fechaCaducidad: "2026-10-01", metodoCosteo: "FIFO", lotes: [] },
+  // Mismo artículo (mismo SKU) también en Centro, con stock bajo a propósito
+  // — demuestra "inventario compartido inteligente" (brote 2): Centro está
+  // en rojo pero hay 35 unidades sanas en Feria, a un banner de distancia.
+  { id: "p16", nombre: "Vela Aromática Artesanal", categoria: "Artesanías", sku: "VEL-ARO-001", barcode: "7861000020086", ubicacionId: "centro", precio: 6.5, costo: 2.5, stockActual: 2, umbralRojo: 10, umbralAmarillo: 20, proveedor: "Taller El Vergel" },
 ];
 
 const configuracion = { gastosMensuales: { centro: 0, mercado: 0, feria: 0 } };

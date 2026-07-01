@@ -31,33 +31,6 @@ function setGastosMensuales(ubicacionId, monto) {
   db.set(`configuracion.gastosMensuales.${ubicacionId}`, Number(monto.toFixed(2))).write();
 }
 
-// Respaldo exportable/importable — ver nota larga en Olimpo Control/data.js.
-function exportarTodo() {
-  if (MODO_LOYVERSE) {
-    return {
-      modo: "loyverse",
-      aviso: "Productos, ventas e inventario viven en Loyverse — respáldalos desde ahí. Este archivo solo contiene movimientos y gastos locales.",
-      movimientos: db.get("movimientos").value(),
-      configuracion: db.get("configuracion").value(),
-    };
-  }
-  return { modo: "demo", ...db.getState() };
-}
-
-function importarTodo(datos) {
-  if (!datos || typeof datos !== "object") return { error: "Archivo de respaldo inválido." };
-  if (MODO_LOYVERSE) {
-    if (datos.movimientos) db.set("movimientos", datos.movimientos).write();
-    if (datos.configuracion) db.set("configuracion", datos.configuracion).write();
-    return { ok: true };
-  }
-  if (datos.modo && datos.modo !== "demo") return { error: "Este respaldo es de otro modo (Loyverse) y no aplica aquí." };
-  const { modo, ...estado } = datos;
-  if (!estado.productos || !estado.ubicaciones) return { error: "El archivo no parece un respaldo válido de POSCuenca." };
-  db.setState(estado);
-  return { ok: true };
-}
-
 if (MODO_LOYVERSE) {
   // ====================== MODO LOYVERSE (real) ======================
   module.exports = {
@@ -78,6 +51,19 @@ if (MODO_LOYVERSE) {
     async setActivaUbicacion() {
       return { error: "Con Loyverse conectado, activa/desactiva tiendas directamente en Loyverse." };
     },
+
+    // Revenue sharing e inventario compartido dependen de datos de venta que
+    // en este modo vienen de Loyverse (sin campos de split/comisión propios
+    // todavía) — no implementado hasta que José conecte su cuenta y se
+    // decida cómo mapear esto sobre su catálogo real.
+    getLiquidaciones() { return []; },
+    async marcarLiquidado() { return { error: "No disponible en modo Loyverse todavía." }; },
+    getSugerenciasTransferencia() { return []; },
+    async crearTransferencia() { return { error: "No disponible en modo Loyverse todavía." }; },
+    getTransferencias() { return []; },
+    async aprobarTransferencia() { return { error: "No disponible en modo Loyverse todavía." }; },
+    async confirmarRecepcionTransferencia() { return { error: "No disponible en modo Loyverse todavía." }; },
+    async rechazarTransferencia() { return { error: "No disponible en modo Loyverse todavía." }; },
 
     async nombreUbicacion(id) {
       const u = (await loyverse.getUbicaciones()).find((x) => x.id === id);
@@ -172,6 +158,206 @@ if (MODO_LOYVERSE) {
     return u ? u.nombre : "Ubicación desconocida";
   }
 
+// ---------------------------------------------------------------------------
+// REVENUE SHARING (brotes 1 y 3, JFC 2026-07-01)
+// ---------------------------------------------------------------------------
+// Por qué esto y no un % fijo hardcodeado: la mayoría del software de
+// consignación/franquicia cobra igual sin importar el volumen y esconde el
+// cálculo real del socio en una hoja de Excel aparte (investigado: quejas
+// recurrentes de dueños de tiendas de consignación sobre "no sé cómo
+// llegaron a ese número"). Acá el cálculo es transparente, se guarda CON
+// cada venta (no se recalcula después con supuestos distintos) y sube solo
+// si el socio va superando su meta del mes — motor de incentivos, no una
+// hoja de cálculo escondida.
+const ZONA_MX = "America/Guayaquil";
+function mesActualISO() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_MX, year: "numeric", month: "2-digit" }).format(new Date());
+}
+function esDelMesActual(fechaISO) {
+  if (!fechaISO) return false;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_MX, year: "numeric", month: "2-digit" }).format(new Date(fechaISO)) === mesActualISO();
+}
+// Total bruto vendido este mes en una ubicación, ANTES de la venta en curso
+// (se usa para saber en qué escala de comisión cae la venta que se está
+// registrando ahora mismo).
+function ventasMesAcumuladas(ubicacionId) {
+  return db.get("ventas").value()
+    .filter((v) => v.ubicacionId === ubicacionId && esDelMesActual(v.fecha))
+    .reduce((acc, v) => acc + v.precioUnit * v.cantidad, 0);
+}
+// Elige la escala vigente según % de meta acumulado (incluyendo esta venta).
+// Sin escalas configuradas, usa el % fijo comisionSocio. Sin meta ($0 o sin
+// definir), no se puede calcular % de cumplimiento — usa la primera escala
+// o el fijo, lo que exista, para no romper la venta por falta de config.
+function comisionVigente(ubicacion, acumuladoConEstaVenta) {
+  const escalas = Array.isArray(ubicacion.escalasComision) ? ubicacion.escalasComision : [];
+  if (!ubicacion.metaMensual || escalas.length === 0) return Number(ubicacion.comisionSocio) || 0;
+  const pctMeta = (acumuladoConEstaVenta / ubicacion.metaMensual) * 100;
+  const escalasOrdenadas = [...escalas].sort((a, b) => a.hasta - b.hasta);
+  const tier = escalasOrdenadas.find((e) => pctMeta <= e.hasta) || escalasOrdenadas[escalasOrdenadas.length - 1];
+  return Number(tier.comision) || 0;
+}
+// Calcula el split de una venta para ubicaciones no-propias. Devuelve null
+// para ubicaciones "propio" (100% es del dueño, no hay nada que repartir).
+function calcularSplitVenta(ubicacion, montoBruto, acumuladoPrevio) {
+  if (!ubicacion || ubicacion.tipo === "propio" || !ubicacion.tipo) return null;
+  const acumuladoConEsta = acumuladoPrevio + montoBruto;
+  const comisionPct = comisionVigente(ubicacion, acumuladoConEsta);
+  const montoComisionSocio = Number((montoBruto * (comisionPct / 100)).toFixed(2));
+  return {
+    comisionPct,
+    montoBruto: Number(montoBruto.toFixed(2)),
+    montoComisionSocio,
+    montoNetoDueno: Number((montoBruto - montoComisionSocio).toFixed(2)),
+  };
+}
+
+// Vista "Liquidaciones": una fila por ubicación no-propia, con lo vendido
+// este mes, la comisión acumulada del socio, el neto del dueño, y si ya se
+// pagó. "liquidada" vive en cada venta (no en la ubicación) porque el dueño
+// puede pagar parcial/mensualmente sin perder el detalle de qué venta ya se
+// saldó.
+function getLiquidaciones() {
+  const ubicaciones = db.get("ubicaciones").value().filter((u) => u.tipo && u.tipo !== "propio");
+  return ubicaciones.map((u) => {
+    const ventasMes = db.get("ventas").value().filter((v) => v.ubicacionId === u.id && esDelMesActual(v.fecha) && v.split);
+    const ventasBrutas = ventasMes.reduce((a, v) => a + v.split.montoBruto, 0);
+    const comisionSocio = ventasMes.reduce((a, v) => a + v.split.montoComisionSocio, 0);
+    const netoDueno = ventasMes.reduce((a, v) => a + v.split.montoNetoDueno, 0);
+    const pendientes = ventasMes.filter((v) => !v.liquidada);
+    return {
+      ubicacionId: u.id, ubicacion: u.nombre, tipo: u.tipo,
+      metaMensual: u.metaMensual || 0,
+      cumplimientoMeta: u.metaMensual ? Number(((ventasBrutas / u.metaMensual) * 100).toFixed(1)) : null,
+      ventasBrutas: Number(ventasBrutas.toFixed(2)),
+      comisionSocio: Number(comisionSocio.toFixed(2)),
+      netoDueno: Number(netoDueno.toFixed(2)),
+      estado: ventasMes.length === 0 ? "sin ventas" : pendientes.length === 0 ? "pagado" : "pendiente",
+      ventasPendientes: pendientes.length,
+    };
+  });
+}
+// Marca TODAS las ventas del mes en curso de esa ubicación como liquidadas
+// (pagadas al socio). No borra ni recalcula nada — es un sello, no un ajuste.
+function marcarLiquidado(ubicacionId) {
+  const u = db.get("ubicaciones").find({ id: ubicacionId }).value();
+  if (!u) return { error: "Ubicación no encontrada." };
+  const ventas = db.get("ventas").value().filter((v) => v.ubicacionId === ubicacionId && esDelMesActual(v.fecha) && !v.liquidada);
+  ventas.forEach((v) => db.get("ventas").find({ id: v.id }).assign({ liquidada: true }).write());
+  registrarMovimiento("liquidacion", { ubicacion: u.nombre, ventasLiquidadas: ventas.length });
+  return { ok: true, ventasLiquidadas: ventas.length };
+}
+
+// ---------------------------------------------------------------------------
+// INVENTARIO COMPARTIDO (brote 2, JFC 2026-07-01)
+// ---------------------------------------------------------------------------
+// Investigado: la queja más repetida en gestión multi-local es "un local se
+// queda sin stock mientras el de al lado tiene de sobra, y nadie se entera
+// hasta que el cliente ya se fue". Esto busca automáticamente el mismo SKU
+// con stock sano en otra ubicación ACTIVA cuando uno está en rojo/amarillo.
+function calcularEstadoSimple(p) {
+  if (p.stockActual <= 0) return "rojo";
+  if (p.stockActual <= p.umbralRojo) return "rojo";
+  if (p.stockActual <= p.umbralAmarillo) return "amarillo";
+  return "verde";
+}
+function getSugerenciasTransferencia(productoId) {
+  const p = db.get("productos").find({ id: productoId }).value();
+  if (!p || calcularEstadoSimple(p) === "verde") return [];
+  const activasIds = new Set(db.get("ubicaciones").value().filter((u) => u.activa !== false).map((u) => u.id));
+  return db.get("productos").value()
+    .filter((x) => x.sku === p.sku && x.id !== p.id && activasIds.has(x.ubicacionId) && calcularEstadoSimple(x) !== "rojo" && x.stockActual > x.umbralAmarillo)
+    .map((x) => ({
+      productoDestinoId: p.id, productoOrigenId: x.id, sku: p.sku, nombre: p.nombre,
+      desde: x.ubicacionId, desdeNombre: nombreUbicacionLocal(x.ubicacionId),
+      hacia: p.ubicacionId, haciaNombre: nombreUbicacionLocal(p.ubicacionId),
+      stockOrigen: x.stockActual,
+      cantidadSugerida: Math.min(Math.floor(x.stockActual / 2), x.stockActual - x.umbralAmarillo),
+    }))
+    .filter((s) => s.cantidadSugerida > 0);
+}
+function crearTransferencia({ productoOrigenId, productoDestinoId, cantidad }) {
+  const origen = db.get("productos").find({ id: productoOrigenId }).value();
+  const destino = db.get("productos").find({ id: productoDestinoId }).value();
+  if (!origen || !destino) return { error: "Producto no encontrado." };
+  if (origen.sku !== destino.sku) return { error: "Los productos de origen y destino no son el mismo artículo (SKU distinto)." };
+  const cant = Number(cantidad);
+  if (!Number.isInteger(cant) || cant <= 0) return { error: "La cantidad debe ser un entero mayor a 0." };
+  if (origen.stockActual < cant) return { error: `"${origen.nombre}" solo tiene ${origen.stockActual} unidades en origen.` };
+  const t = {
+    id: randomUUID(), productoOrigenId, productoDestinoId, sku: origen.sku, nombre: origen.nombre,
+    desde: origen.ubicacionId, desdeNombre: nombreUbicacionLocal(origen.ubicacionId),
+    hacia: destino.ubicacionId, haciaNombre: nombreUbicacionLocal(destino.ubicacionId),
+    cantidad: cant, estado: "solicitada", fecha: new Date().toISOString(),
+  };
+  db.get("transferencias").push(t).write();
+  registrarMovimiento("transferencia-solicitada", { producto: t.nombre, cantidad: cant, desde: t.desdeNombre, hacia: t.haciaNombre });
+  return t;
+}
+function getTransferencias() {
+  return db.get("transferencias").value().slice().reverse();
+}
+// Aprobar: el stock SALE del origen de inmediato (evita venderlo dos veces
+// mientras viaja) y la transferencia queda "en_transito" hasta que alguien
+// confirme que llegó — recién ahí se suma al destino. Si se rechaza, no se
+// toca ningún stock.
+function aprobarTransferencia(id) {
+  const t = db.get("transferencias").find({ id }).value();
+  if (!t) return { error: "Transferencia no encontrada." };
+  if (t.estado !== "solicitada") return { error: `Esta transferencia ya está en estado "${t.estado}".` };
+  const origen = db.get("productos").find({ id: t.productoOrigenId }).value();
+  if (!origen || origen.stockActual < t.cantidad) return { error: "Ya no hay suficiente stock en origen para aprobar esta transferencia." };
+  db.get("productos").find({ id: t.productoOrigenId }).assign({ stockActual: origen.stockActual - t.cantidad }).write();
+  db.get("transferencias").find({ id }).assign({ estado: "en_transito" }).write();
+  registrarMovimiento("transferencia-aprobada", { producto: t.nombre, cantidad: t.cantidad, desde: t.desdeNombre, hacia: t.haciaNombre });
+  return db.get("transferencias").find({ id }).value();
+}
+function confirmarRecepcionTransferencia(id) {
+  const t = db.get("transferencias").find({ id }).value();
+  if (!t) return { error: "Transferencia no encontrada." };
+  if (t.estado !== "en_transito") return { error: `Esta transferencia está "${t.estado}", no se puede confirmar recepción.` };
+  const destino = db.get("productos").find({ id: t.productoDestinoId }).value();
+  if (!destino) return { error: "Producto destino no encontrado." };
+  db.get("productos").find({ id: t.productoDestinoId }).assign({ stockActual: destino.stockActual + t.cantidad }).write();
+  db.get("transferencias").find({ id }).assign({ estado: "recibida" }).write();
+  registrarMovimiento("transferencia-recibida", { producto: t.nombre, cantidad: t.cantidad, desde: t.desdeNombre, hacia: t.haciaNombre });
+  return db.get("transferencias").find({ id }).value();
+}
+function rechazarTransferencia(id) {
+  const t = db.get("transferencias").find({ id }).value();
+  if (!t) return { error: "Transferencia no encontrada." };
+  if (t.estado !== "solicitada") return { error: `Esta transferencia ya está en estado "${t.estado}".` };
+  db.get("transferencias").find({ id }).assign({ estado: "rechazada" }).write();
+  return db.get("transferencias").find({ id }).value();
+}
+
+// Respaldo exportable/importable — ver nota larga en Olimpo Control/data.js.
+function exportarTodo() {
+  if (MODO_LOYVERSE) {
+    return {
+      modo: "loyverse",
+      aviso: "Productos, ventas e inventario viven en Loyverse — respáldalos desde ahí. Este archivo solo contiene movimientos y gastos locales.",
+      movimientos: db.get("movimientos").value(),
+      configuracion: db.get("configuracion").value(),
+    };
+  }
+  return { modo: "demo", ...db.getState() };
+}
+
+function importarTodo(datos) {
+  if (!datos || typeof datos !== "object") return { error: "Archivo de respaldo inválido." };
+  if (MODO_LOYVERSE) {
+    if (datos.movimientos) db.set("movimientos", datos.movimientos).write();
+    if (datos.configuracion) db.set("configuracion", datos.configuracion).write();
+    return { ok: true };
+  }
+  if (datos.modo && datos.modo !== "demo") return { error: "Este respaldo es de otro modo (Loyverse) y no aplica aquí." };
+  const { modo, ...estado } = datos;
+  if (!estado.productos || !estado.ubicaciones) return { error: "El archivo no parece un respaldo válido de POSCuenca." };
+  db.setState(estado);
+  return { ok: true };
+}
+
   module.exports = {
     modo: "demo",
 
@@ -188,20 +374,27 @@ if (MODO_LOYVERSE) {
       return nombreUbicacionLocal(id);
     },
 
-    async crearUbicacion({ nombre, tipo }) {
+    async crearUbicacion({ nombre, tipo, comisionSocio, metaMensual, escalasComision }) {
       if (!nombre || !nombre.trim()) return { error: "El nombre de la ubicación es obligatorio." };
-      const u = { id: randomUUID(), nombre: nombre.trim(), tipo: tipo || "propio", activa: true };
+      const u = {
+        id: randomUUID(), nombre: nombre.trim(), tipo: tipo || "propio", activa: true,
+        comisionSocio: Number(comisionSocio) || 0, metaMensual: Number(metaMensual) || 0,
+        escalasComision: Array.isArray(escalasComision) ? escalasComision : [],
+      };
       db.get("ubicaciones").push(u).write();
       registrarMovimiento("ubicacion-alta", { ubicacion: u.nombre });
       return u;
     },
 
-    async actualizarUbicacion(id, { nombre, tipo }) {
+    async actualizarUbicacion(id, { nombre, tipo, comisionSocio, metaMensual, escalasComision }) {
       const u = db.get("ubicaciones").find({ id }).value();
       if (!u) return { error: "Ubicación no encontrada." };
       const cambios = {};
       if (nombre && nombre.trim()) cambios.nombre = nombre.trim();
       if (tipo) cambios.tipo = tipo;
+      if (comisionSocio !== undefined) cambios.comisionSocio = Number(comisionSocio) || 0;
+      if (metaMensual !== undefined) cambios.metaMensual = Number(metaMensual) || 0;
+      if (Array.isArray(escalasComision)) cambios.escalasComision = escalasComision;
       db.get("ubicaciones").find({ id }).assign(cambios).write();
       return db.get("ubicaciones").find({ id }).value();
     },
@@ -275,14 +468,21 @@ if (MODO_LOYVERSE) {
       if (p.stockActual < cantidad) return { error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` };
 
       const ventaId = randomUUID();
+      const montoBruto = p.precio * cantidad;
+      // El split se calcula ANTES de escribir esta venta (para que el
+      // acumulado del mes no se cuente a sí mismo dos veces) y se guarda
+      // CONGELADO dentro de la venta — si luego cambian las escalas o la
+      // meta, las ventas ya hechas no se recalculan con reglas nuevas.
+      const acumuladoPrevio = ubic ? ventasMesAcumuladas(ubic.id) : 0;
+      const split = ubic ? calcularSplitVenta(ubic, montoBruto, acumuladoPrevio) : null;
       db.get("productos").find({ id }).assign({ stockActual: p.stockActual - cantidad }).write();
       db.get("ventas")
-        .push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString() })
+        .push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString(), split, liquidada: false })
         .write();
       registrarMovimiento("venta", {
         producto: p.nombre,
         cantidad,
-        total: Number((p.precio * cantidad).toFixed(2)),
+        total: Number(montoBruto.toFixed(2)),
         ubicacion: nombreUbicacionLocal(p.ubicacionId),
       });
       return { producto: db.get("productos").find({ id }).value(), ventaId };
@@ -338,5 +538,13 @@ if (MODO_LOYVERSE) {
     setGastosMensuales,
     exportarTodo,
     importarTodo,
+    getLiquidaciones,
+    marcarLiquidado,
+    getSugerenciasTransferencia,
+    crearTransferencia,
+    getTransferencias,
+    aprobarTransferencia,
+    confirmarRecepcionTransferencia,
+    rechazarTransferencia,
   };
 }

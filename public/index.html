@@ -687,6 +687,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,12 7,12 10,5 14,19 17,12 22,12"></polyline></svg>
     <span>Actividad</span>
   </button>
+  <button data-vista="liquidaciones">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.5c0 3-6 1.5-6 4.5 0 1.4 1.3 2.5 3 2.5s3-1.1 3-2.5"></path></svg>
+    <span>Liquidaciones</span>
+  </button>
   <button data-vista="avanzado">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2.5v3.4M12 18.1v3.4M3.6 6l2.4 2.4M18 15.6l2.4 2.4M3.6 18l2.4-2.4M18 8.4l2.4-2.4M2.5 12h3.4M18.1 12h3.4"></path></svg>
     <span>Avanzado</span>
@@ -772,6 +776,13 @@
     <div id="listaActividad"></div>
   </section>
 
+  <!-- VISTA: LIQUIDACIONES (solo dueño) -->
+  <section id="vista-liquidaciones" class="vista">
+    <h3 class="seccion" style="margin-top:0;">Liquidaciones</h3>
+    <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Lo que le debes a cada socio este mes, calculado venta por venta — sin Excel, sin sorpresas.</p>
+    <div id="listaLiquidaciones"></div>
+  </section>
+
   <!-- VISTA: AVANZADO -->
   <section id="vista-avanzado" class="vista">
     <h3 class="seccion" style="margin-top:0;">Modo avanzado</h3>
@@ -855,7 +866,7 @@ function vistaActivaId(){
 
 function refrescarVistaActiva(){
   const v = vistaActivaId();
-  const cargadores = { hoy: cargarHoy, inventario: cargarInventario, etiquetas: cargarEtiquetas, actividad: cargarActividad, avanzado: cargarAvanzado };
+  const cargadores = { hoy: cargarHoy, inventario: cargarInventario, etiquetas: cargarEtiquetas, actividad: cargarActividad, avanzado: cargarAvanzado, liquidaciones: cargarLiquidaciones };
   const fn = cargadores[v];
   if (fn) Promise.resolve(fn()).catch(err => console.error(`Error cargando vista "${v}":`, err));
 }
@@ -1091,8 +1102,37 @@ function pintarFicha(p){
         <button class="etiqueta" onclick="abrirEtiqueta('${p.id}')">Ver etiqueta</button>
       </div>
     </div>
+    <div id="oc-transfer-banner"></div>
     <div id="oc-toast-venta"></div>
   `;
+  if (p.estado === "rojo" || p.estado === "amarillo") cargarSugerenciaTransferencia(p.id);
+}
+
+// --- Inventario compartido (brote 2): "hay X unidades en [Local]" ---
+// Pain point investigado: la queja más repetida en gestión multi-local es
+// justo esta — un local se queda sin stock mientras el de al lado tiene de
+// sobra, y nadie se entera hasta que el cliente ya se fue. Este banner
+// cierra esa brecha en el momento exacto en que más importa: cuando el
+// cajero ya está mirando el producto en rojo/amarillo.
+async function cargarSugerenciaTransferencia(productoId){
+  const cont = document.getElementById("oc-transfer-banner");
+  if (!cont) return;
+  const sugerencias = await (await fetch(`${API}/productos/${productoId}/sugerencias-transferencia`)).json();
+  if (!sugerencias.length) { cont.innerHTML = ""; return; }
+  cont.innerHTML = sugerencias.map(s => `
+    <div class="tag-card" style="margin-top:10px;background:var(--azul-oscuro,#1c3049);color:#fff;padding:12px 14px;text-align:left;">
+      <div style="font-size:14px;">📦 Hay <strong>${s.stockOrigen} unidades</strong> en <strong>${s.desdeNombre}</strong></div>
+      <button class="ir" style="margin-top:8px;background:#fff;color:var(--azul-oscuro,#1c3049);border-color:#fff;" onclick="solicitarTransferencia('${s.productoOrigenId}','${s.productoDestinoId}',${s.cantidadSugerida},this)">Solicitar transferencia de ${s.cantidadSugerida} unidades</button>
+    </div>
+  `).join("");
+}
+
+async function solicitarTransferencia(origenId, destinoId, cantidad, btn){
+  btn.disabled = true;
+  const res = await fetch(`${API}/transferencias`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productoOrigenId: origenId, productoDestinoId: destinoId, cantidad }) });
+  const r = await res.json();
+  if (!res.ok){ alert(r.error); btn.disabled = false; return; }
+  btn.parentElement.innerHTML = `<div style="font-size:14px;">✓ Transferencia solicitada. El dueño la aprueba desde Avanzado.</div>`;
 }
 
 async function venderUno(id){
@@ -1277,6 +1317,37 @@ async function cargarActividad(){
       <div style="color:var(--azul-medio);">${new Date(it.fecha).toLocaleString()}</div>
     </div>
   `).join("");
+}
+
+// --- VISTA LIQUIDACIONES (brote 1: revenue sharing) ---
+async function cargarLiquidaciones(){
+  const cont = document.getElementById("listaLiquidaciones");
+  const filas = await (await fetch(`${API}/liquidaciones`)).json();
+  if (filas.length === 0){
+    cont.innerHTML = `<p>Todavía no tienes ubicaciones de tipo socio, franquicia o consignación. Créalas en Avanzado → Ubicaciones.</p>`;
+    return;
+  }
+  cont.innerHTML = filas.map(f => `
+    <div class="tag-card" style="text-align:left;margin-bottom:12px;padding:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <strong style="font-size:16px;">${f.ubicacion}</strong>
+        <span class="badge-estado ${f.estado === "pagado" ? "verde" : f.estado === "sin ventas" ? "amarillo" : "rojo"}">${f.estado}</span>
+      </div>
+      ${f.metaMensual ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:4px;">Meta del mes: ${fmtMoney(f.metaMensual)} · Cumplido: ${f.cumplimientoMeta}%</div>` : ""}
+      <table style="width:100%;margin-top:10px;font-size:14px;">
+        <tr><td>Ventas del mes</td><td style="text-align:right;">${fmtMoney(f.ventasBrutas)}</td></tr>
+        <tr><td><strong>Comisión del socio</strong></td><td style="text-align:right;"><strong>${fmtMoney(f.comisionSocio)}</strong></td></tr>
+        <tr><td>Neto para el dueño</td><td style="text-align:right;">${fmtMoney(f.netoDueno)}</td></tr>
+      </table>
+      ${f.estado === "pendiente" ? `<button class="ir" style="margin-top:10px;background:var(--verde,#2f7a4f);color:#fff;border-color:var(--verde,#2f7a4f);" onclick="marcarLiquidacionPagada('${f.ubicacionId}')">✓ Marcar como pagado (${f.ventasPendientes} ventas)</button>` : ""}
+    </div>
+  `).join("");
+}
+
+async function marcarLiquidacionPagada(ubicacionId){
+  if (!confirm("¿Confirmas que ya le pagaste al socio lo que corresponde este mes?")) return;
+  const res = await fetch(`${API}/liquidaciones/${ubicacionId}/marcar-pagado`, { method: "POST" });
+  if (res.ok) cargarLiquidaciones();
 }
 
 // --- VISTA AVANZADO ---

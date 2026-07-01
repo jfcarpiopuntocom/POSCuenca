@@ -25,6 +25,15 @@
     tboxes.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:6px 0 22px;";
     cont.appendChild(tboxes);
 
+    // Gráfico comparativo por ubicación (brote 3): ventas, margen,
+    // cumplimiento de meta y comisión efectiva pagada — una barra por
+    // ubicación, en divs puros con CSS (sin librerías de gráficos).
+    const chartBox = document.createElement("div");
+    chartBox.className = "tag-card";
+    chartBox.style.cssText = "margin-bottom:22px;text-align:left;";
+    chartBox.innerHTML = `<h3 class="seccion" style="margin-top:0;">Comparativo por ubicación (este mes)</h3><div id="oc-chart"></div>`;
+    cont.appendChild(chartBox);
+
     // Mover PL / balance / valorizado (h3 + tabla-wrap) al contenedor
     const marcadores = ["tablaPL", "tablaBalance", "tablaValorizado"];
     marcadores.forEach((idTabla) => {
@@ -120,8 +129,13 @@
             <option value="franquicia">Franquicia</option>
             <option value="consignacion">Consignación</option>
           </select></label>
+        <label style="font-size:13px;">Comisión base %<br>
+          <input id="oc-ubic-comision" type="number" min="0" max="100" placeholder="Ej: 25" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;width:90px;"></label>
+        <label style="font-size:13px;">Meta mensual $<br>
+          <input id="oc-ubic-meta" type="number" min="0" placeholder="Ej: 300" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;width:100px;"></label>
         <button id="oc-ubic-crear" class="ir" style="background:var(--azul-medio);color:var(--blanco-calido);border-color:var(--azul-oscuro);">+ Agregar</button>
       </div>
+      <p style="font-size:12px;color:var(--ink-soft);margin-top:6px;">Comisión y meta solo aplican a tipos socio/franquicia/consignación. Con meta definida, la comisión puede subir automáticamente por escalas (ver seed de ejemplo) — configurar escalas propias llega en una próxima vuelta.</p>
       <p id="oc-ubic-msg" style="font-size:14px;margin-top:8px;"></p>`;
     vista.appendChild(ubicPanel);
     renderUbicaciones();
@@ -129,15 +143,29 @@
     $("oc-ubic-crear").addEventListener("click", async () => {
       const nombre = $("oc-ubic-nombre").value.trim();
       const tipo = $("oc-ubic-tipo").value;
+      const comisionSocio = $("oc-ubic-comision").value;
+      const metaMensual = $("oc-ubic-meta").value;
       if (!nombre) { msg("oc-ubic-msg", "El nombre es obligatorio.", "var(--rojo)"); return; }
-      const res = await fetch(`${API}/ubicaciones`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, tipo }) });
+      const res = await fetch(`${API}/ubicaciones`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, tipo, comisionSocio, metaMensual }) });
       const r = await res.json();
       if (!res.ok) { msg("oc-ubic-msg", r.error, "var(--rojo)"); return; }
-      $("oc-ubic-nombre").value = "";
+      $("oc-ubic-nombre").value = ""; $("oc-ubic-comision").value = ""; $("oc-ubic-meta").value = "";
       msg("oc-ubic-msg", `"${r.nombre}" creada.`, "var(--verde)");
       renderUbicaciones();
       if (window.cargarUbicaciones) window.cargarUbicaciones();
     });
+
+    // --- Transferencias (brote 2) — panel operativo, fuera del candado
+    // contable: el dueño necesita aprobar/rechazar rápido, no es info financiera.
+    const transfPanel = document.createElement("div");
+    transfPanel.className = "tag-card";
+    transfPanel.style.cssText = "text-align:left;margin-top:22px;";
+    transfPanel.innerHTML = `
+      <h3 class="seccion" style="margin-top:0;">Transferencias entre ubicaciones</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Solicitudes de traspaso de stock entre tus locales.</p>
+      <div id="oc-transf-lista"></div>`;
+    vista.appendChild(transfPanel);
+    renderTransferencias();
 
     window.OCAuth.listo().then(() => { pintarEmail(); });
 
@@ -230,6 +258,47 @@
     });
   }
 
+  async function renderTransferencias() {
+    const cont = $("oc-transf-lista");
+    if (!cont) return;
+    const lista = await (await fetch(`${API}/transferencias`)).json();
+    if (!lista.length) { cont.innerHTML = `<p style="font-size:14px;color:var(--ink-soft);">No hay transferencias todavía.</p>`; return; }
+    cont.innerHTML = lista.map((t) => {
+      const colorEstado = t.estado === "recibida" ? "verde" : t.estado === "rechazada" ? "rojo" : t.estado === "en_transito" ? "azul" : "amarillo";
+      let acciones = "";
+      if (t.estado === "solicitada") {
+        acciones = `<button data-transf-aprobar="${t.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--verde);border-radius:5px;background:transparent;color:var(--verde);cursor:pointer;">Aprobar</button>
+          <button data-transf-rechazar="${t.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rojo);border-radius:5px;background:transparent;color:var(--rojo);cursor:pointer;">Rechazar</button>`;
+      } else if (t.estado === "en_transito") {
+        acciones = `<button data-transf-confirmar="${t.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--azul-medio);border-radius:5px;background:transparent;color:var(--azul-medio);cursor:pointer;">Confirmar recepción</button>`;
+      }
+      return `<div class="tag-card" style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:180px;">
+          <strong>${t.nombre}</strong> · ${t.cantidad} un.
+          <div style="font-size:12px;color:var(--ink-soft);">${t.desdeNombre} → ${t.haciaNombre}</div>
+        </div>
+        <span class="badge-estado ${colorEstado}">${t.estado.replace("_", " ")}</span>
+        ${acciones}
+      </div>`;
+    }).join("");
+
+    cont.querySelectorAll("[data-transf-aprobar]").forEach((btn) => btn.addEventListener("click", async () => {
+      const res = await fetch(`${API}/transferencias/${btn.dataset.transfAprobar}/aprobar`, { method: "POST" });
+      const r = await res.json(); if (!res.ok) { alert(r.error); return; }
+      renderTransferencias();
+    }));
+    cont.querySelectorAll("[data-transf-rechazar]").forEach((btn) => btn.addEventListener("click", async () => {
+      await fetch(`${API}/transferencias/${btn.dataset.transfRechazar}/rechazar`, { method: "POST" });
+      renderTransferencias();
+    }));
+    cont.querySelectorAll("[data-transf-confirmar]").forEach((btn) => btn.addEventListener("click", async () => {
+      const res = await fetch(`${API}/transferencias/${btn.dataset.transfConfirmar}/confirmar-recepcion`, { method: "POST" });
+      const r = await res.json(); if (!res.ok) { alert(r.error); return; }
+      renderTransferencias();
+      cargarInventario();
+    }));
+  }
+
   function pintarEmail() {
     const email = window.OCSecure.leerCorreo();
     const row = $("oc-email-row");
@@ -295,7 +364,36 @@
       { nombre: "Gastos Operativos (Gasto)", debe: [["Prorrateo del día", pl.gastosOperativos]], haber: [] },
     ];
     $("oc-taccounts").innerHTML = cuentas.map(tAccount).join("");
+    await renderChart();
   }
+
+  // Una barra por ubicación no-propia: % de meta cumplida (la métrica que
+  // más le importa al socio) + la comisión efectiva que terminó pagándose
+  // (revela el efecto de las escalas dinámicas: no es un % fijo, sube con
+  // el desempeño). Divs + CSS, cero librerías de gráficos.
+  async function renderChart() {
+    const box = $("oc-chart");
+    if (!box) return;
+    const filas = await (await fetch(`${API}/liquidaciones`)).json();
+    if (!filas.length) { box.innerHTML = `<p style="font-size:14px;color:var(--ink-soft);">Sin ubicaciones tipo socio/franquicia/consignación todavía.</p>`; return; }
+    const maxCumplimiento = Math.max(100, ...filas.map((f) => f.cumplimientoMeta || 0));
+    box.innerHTML = filas.map((f) => {
+      const comisionEfectivaPct = f.ventasBrutas > 0 ? (f.comisionSocio / f.ventasBrutas) * 100 : 0;
+      const anchoMeta = Math.min(100, ((f.cumplimientoMeta || 0) / maxCumplimiento) * 100);
+      return `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
+          <strong>${f.ubicacion}</strong>
+          <span style="color:var(--ink-soft);">${fmtVentas(f.ventasBrutas)} vendido · ${f.cumplimientoMeta ?? 0}% de meta</span>
+        </div>
+        <div style="background:var(--crema,#f3e8cd);border-radius:6px;overflow:hidden;height:22px;position:relative;">
+          <div style="background:${(f.cumplimientoMeta || 0) >= 100 ? "var(--verde,#2f7a4f)" : "var(--azul-medio,#2c4a68)"};height:100%;width:${anchoMeta}%;transition:width .3s;"></div>
+        </div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">Comisión efectiva pagada: ${comisionEfectivaPct.toFixed(1)}% (${money(f.comisionSocio)})</div>
+      </div>`;
+    }).join("");
+  }
+  function fmtVentas(n) { return "$" + Number(n || 0).toFixed(2); }
 
   function tAccount(c) {
     const filas = Math.max(c.debe.length, c.haber.length, 1);

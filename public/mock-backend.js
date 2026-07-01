@@ -27,13 +27,36 @@
           "id": "mercado",
           "nombre": "Stand Mercado 10 de Agosto",
           "activa": true,
-          "tipo": "propio"
+          "tipo": "socio",
+          "comisionSocio": 25,
+          "metaMensual": 300,
+          "escalasComision": [
+              {
+                  "hasta": 80,
+                  "comision": 25
+              },
+              {
+                  "hasta": 100,
+                  "comision": 30
+              },
+              {
+                  "hasta": 120,
+                  "comision": 35
+              },
+              {
+                  "hasta": 999,
+                  "comision": 40
+              }
+          ]
       },
       {
           "id": "feria",
           "nombre": "Feria Artesanal El Otorongo",
           "activa": true,
-          "tipo": "propio"
+          "tipo": "consignacion",
+          "comisionSocio": 30,
+          "metaMensual": 200,
+          "escalasComision": []
       }
   ];
 
@@ -52,15 +75,64 @@
     {"id":"p12","nombre":"Olla de Barro Esmaltada","categoria":"Cerámica","sku":"CER-OLL-001","barcode":"7861000020062","ubicacionId":"mercado","precio":15,"costo":7,"stockActual":20,"umbralRojo":6,"umbralAmarillo":12,"proveedor":"Cerámica San Marcos"},
     {"id":"p13","nombre":"Poncho de Lana Cañari","categoria":"Textiles","sku":"TEX-PON-001","barcode":"7861000020079","ubicacionId":"centro","precio":55,"costo":28,"stockActual":6,"umbralRojo":3,"umbralAmarillo":6,"proveedor":"Tejedoras de Sígsig"},
     {"id":"p14","nombre":"Vela Aromática Artesanal","categoria":"Artesanías","sku":"VEL-ARO-001","barcode":"7861000020086","ubicacionId":"feria","precio":6.5,"costo":2.5,"stockActual":35,"umbralRojo":10,"umbralAmarillo":20,"proveedor":"Taller El Vergel"},
-    {"id":"p15","nombre":"Mermelada Artesanal de Mora 250g","categoria":"Gourmet","sku":"GOU-MER-250","barcode":"7861000020093","ubicacionId":"mercado","precio":4,"costo":1.6,"stockActual":28,"umbralRojo":10,"umbralAmarillo":18,"proveedor":"Productos del Valle","perecible":true,"fechaCaducidad":"2026-10-01","metodoCosteo":"FIFO","lotes":[]}
+    {"id":"p15","nombre":"Mermelada Artesanal de Mora 250g","categoria":"Gourmet","sku":"GOU-MER-250","barcode":"7861000020093","ubicacionId":"mercado","precio":4,"costo":1.6,"stockActual":28,"umbralRojo":10,"umbralAmarillo":18,"proveedor":"Productos del Valle","perecible":true,"fechaCaducidad":"2026-10-01","metodoCosteo":"FIFO","lotes":[]},
+    {"id":"p16","nombre":"Vela Aromática Artesanal","categoria":"Artesanías","sku":"VEL-ARO-001","barcode":"7861000020086","ubicacionId":"centro","precio":6.5,"costo":2.5,"stockActual":2,"umbralRojo":10,"umbralAmarillo":20,"proveedor":"Taller El Vergel"}
   ];
 
   const ventas = [];
   const movimientos = [];
+  const transferencias = [];
   const gastosMensuales = {"centro":0,"mercado":0,"feria":0};
   const ORDEN = { rojo: 0, amarillo: 1, azul: 2, verde: 3 };
 
   function nombreUbic(id) { const u = ubicaciones.find((x) => x.id === id); return u ? u.nombre : "Ubicación desconocida"; }
+
+  // ---- Revenue sharing (espejo de data.js) ----
+  function mesActualISO() { return hoyISO().slice(0, 7); }
+  function esDelMesActual(fechaISO) { return fechaISO && fechaISO.slice(0, 7) === mesActualISO(); }
+  function ventasMesAcumuladas(ubicacionId) {
+    return ventas.filter((v) => v.ubicacionId === ubicacionId && esDelMesActual(v.fecha)).reduce((a, v) => a + v.precioUnit * v.cantidad, 0);
+  }
+  function comisionVigente(u, acumuladoConEsta) {
+    const escalas = Array.isArray(u.escalasComision) ? u.escalasComision : [];
+    if (!u.metaMensual || escalas.length === 0) return Number(u.comisionSocio) || 0;
+    const pctMeta = (acumuladoConEsta / u.metaMensual) * 100;
+    const ordenadas = [...escalas].sort((a, b) => a.hasta - b.hasta);
+    const tier = ordenadas.find((e) => pctMeta <= e.hasta) || ordenadas[ordenadas.length - 1];
+    return Number(tier.comision) || 0;
+  }
+  function calcularSplitVenta(u, montoBruto, acumuladoPrevio) {
+    if (!u || u.tipo === "propio" || !u.tipo) return null;
+    const comisionPct = comisionVigente(u, acumuladoPrevio + montoBruto);
+    const montoComisionSocio = +(montoBruto * (comisionPct / 100)).toFixed(2);
+    return { comisionPct, montoBruto: +montoBruto.toFixed(2), montoComisionSocio, montoNetoDueno: +(montoBruto - montoComisionSocio).toFixed(2) };
+  }
+  function getLiquidaciones() {
+    return ubicaciones.filter((u) => u.tipo && u.tipo !== "propio").map((u) => {
+      const ventasMes = ventas.filter((v) => v.ubicacionId === u.id && esDelMesActual(v.fecha) && v.split);
+      const ventasBrutas = ventasMes.reduce((a, v) => a + v.split.montoBruto, 0);
+      const comisionSocio = ventasMes.reduce((a, v) => a + v.split.montoComisionSocio, 0);
+      const netoDueno = ventasMes.reduce((a, v) => a + v.split.montoNetoDueno, 0);
+      const pendientes = ventasMes.filter((v) => !v.liquidada);
+      return {
+        ubicacionId: u.id, ubicacion: u.nombre, tipo: u.tipo, metaMensual: u.metaMensual || 0,
+        cumplimientoMeta: u.metaMensual ? +((ventasBrutas / u.metaMensual) * 100).toFixed(1) : null,
+        ventasBrutas: +ventasBrutas.toFixed(2), comisionSocio: +comisionSocio.toFixed(2), netoDueno: +netoDueno.toFixed(2),
+        estado: ventasMes.length === 0 ? "sin ventas" : pendientes.length === 0 ? "pagado" : "pendiente",
+        ventasPendientes: pendientes.length,
+      };
+    });
+  }
+  // ---- Inventario compartido (espejo de data.js) ----
+  function estadoSimple(p) { if (p.stockActual <= 0) return "rojo"; if (p.stockActual <= p.umbralRojo) return "rojo"; if (p.stockActual <= p.umbralAmarillo) return "amarillo"; return "verde"; }
+  function getSugerenciasTransferencia(productoId) {
+    const p = productos.find((x) => x.id === productoId);
+    if (!p || estadoSimple(p) === "verde") return [];
+    const activasIds = new Set(ubicaciones.filter((u) => u.activa !== false).map((u) => u.id));
+    return productos.filter((x) => x.sku === p.sku && x.id !== p.id && activasIds.has(x.ubicacionId) && estadoSimple(x) !== "rojo" && x.stockActual > x.umbralAmarillo)
+      .map((x) => ({ productoDestinoId: p.id, productoOrigenId: x.id, sku: p.sku, nombre: p.nombre, desde: x.ubicacionId, desdeNombre: nombreUbic(x.ubicacionId), hacia: p.ubicacionId, haciaNombre: nombreUbic(p.ubicacionId), stockOrigen: x.stockActual, cantidadSugerida: Math.min(Math.floor(x.stockActual / 2), x.stockActual - x.umbralAmarillo) }))
+      .filter((s) => s.cantidadSugerida > 0);
+  }
   // Días para vencer (negativo = ya venció). Espejo de diasParaVencer() en server.js.
   function diasParaVencer(fecha) {
     if (!fecha) return null;
@@ -122,7 +194,7 @@
       }
       if (path === "/api/ubicaciones" && opts && opts.method === "POST") {
         if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre de la ubicación es obligatorio." }, 400);
-        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true };
+        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true, comisionSocio: Number(body.comisionSocio) || 0, metaMensual: Number(body.metaMensual) || 0, escalasComision: Array.isArray(body.escalasComision) ? body.escalasComision : [] };
         ubicaciones.push(nueva);
         mov("ubicacion-alta", { ubicacion: nueva.nombre });
         return J(nueva);
@@ -183,9 +255,12 @@
         if (ubicP && ubicP.activa === false) return J({ error: `"${ubicP.nombre}" está desactivada — no admite ventas nuevas.` }, 400);
         const cant = Number.isInteger(body.cantidad) && body.cantidad > 0 ? body.cantidad : 1;
         if (p.stockActual < cant) return J({ error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` }, 400);
+        const montoBruto = p.precio * cant;
+        const acumuladoPrevio = ubicP ? ventasMesAcumuladas(ubicP.id) : 0;
+        const split = ubicP ? calcularSplitVenta(ubicP, montoBruto, acumuladoPrevio) : null;
         p.stockActual -= cant;
         const ventaId = String(Date.now() + Math.random());
-        ventas.push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad: cant, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString() });
+        ventas.push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad: cant, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString(), split, liquidada: false });
         mov("venta", { producto: p.nombre, cantidad: cant, total: +(p.precio * cant).toFixed(2), ubicacion: nombreUbic(p.ubicacionId) });
         return J({ producto: ficha(p), ventaId });
       }
@@ -247,6 +322,61 @@
           }
           return J({ ok: true });
         } catch (e) { return J({ error: "No se pudo importar: " + String(e) }, 400); }
+      }
+
+      if (path === "/api/liquidaciones") return J(getLiquidaciones());
+      if ((m = path.match(/^\/api\/liquidaciones\/([^/]+)\/marcar-pagado$/))) {
+        const u = ubicaciones.find((x) => x.id === m[1]); if (!u) return J({ error: "Ubicación no encontrada." }, 404);
+        const pend = ventas.filter((v) => v.ubicacionId === m[1] && esDelMesActual(v.fecha) && !v.liquidada);
+        pend.forEach((v) => { v.liquidada = true; });
+        mov("liquidacion", { ubicacion: u.nombre, ventasLiquidadas: pend.length });
+        return J({ ok: true, ventasLiquidadas: pend.length });
+      }
+
+      if ((m = path.match(/^\/api\/productos\/([^/]+)\/sugerencias-transferencia$/))) {
+        return J(getSugerenciasTransferencia(m[1]));
+      }
+      if (path === "/api/transferencias" && (!opts || opts.method !== "POST")) {
+        return J(transferencias.slice().reverse());
+      }
+      if (path === "/api/transferencias" && opts && opts.method === "POST") {
+        const origen = productos.find((x) => x.id === body.productoOrigenId);
+        const destino = productos.find((x) => x.id === body.productoDestinoId);
+        if (!origen || !destino) return J({ error: "Producto no encontrado." }, 404);
+        if (origen.sku !== destino.sku) return J({ error: "Los productos de origen y destino no son el mismo artículo (SKU distinto)." }, 400);
+        const cant = Number(body.cantidad);
+        if (!Number.isInteger(cant) || cant <= 0) return J({ error: "La cantidad debe ser un entero mayor a 0." }, 400);
+        if (origen.stockActual < cant) return J({ error: `"${origen.nombre}" solo tiene ${origen.stockActual} unidades en origen.` }, 400);
+        const t = { id: "t" + Math.random().toString(36).slice(2, 9), productoOrigenId: origen.id, productoDestinoId: destino.id, sku: origen.sku, nombre: origen.nombre, desde: origen.ubicacionId, desdeNombre: nombreUbic(origen.ubicacionId), hacia: destino.ubicacionId, haciaNombre: nombreUbic(destino.ubicacionId), cantidad: cant, estado: "solicitada", fecha: new Date().toISOString() };
+        transferencias.push(t);
+        mov("transferencia-solicitada", { producto: t.nombre, cantidad: cant, desde: t.desdeNombre, hacia: t.haciaNombre });
+        return J(t);
+      }
+      if ((m = path.match(/^\/api\/transferencias\/([^/]+)\/aprobar$/))) {
+        const t = transferencias.find((x) => x.id === m[1]); if (!t) return J({ error: "Transferencia no encontrada." }, 404);
+        if (t.estado !== "solicitada") return J({ error: `Esta transferencia ya está en estado "${t.estado}".` }, 400);
+        const origen = productos.find((x) => x.id === t.productoOrigenId);
+        if (!origen || origen.stockActual < t.cantidad) return J({ error: "Ya no hay suficiente stock en origen para aprobar esta transferencia." }, 400);
+        origen.stockActual -= t.cantidad;
+        t.estado = "en_transito";
+        mov("transferencia-aprobada", { producto: t.nombre, cantidad: t.cantidad, desde: t.desdeNombre, hacia: t.haciaNombre });
+        return J(t);
+      }
+      if ((m = path.match(/^\/api\/transferencias\/([^/]+)\/confirmar-recepcion$/))) {
+        const t = transferencias.find((x) => x.id === m[1]); if (!t) return J({ error: "Transferencia no encontrada." }, 404);
+        if (t.estado !== "en_transito") return J({ error: `Esta transferencia está "${t.estado}", no se puede confirmar recepción.` }, 400);
+        const destino = productos.find((x) => x.id === t.productoDestinoId);
+        if (!destino) return J({ error: "Producto destino no encontrado." }, 404);
+        destino.stockActual += t.cantidad;
+        t.estado = "recibida";
+        mov("transferencia-recibida", { producto: t.nombre, cantidad: t.cantidad, desde: t.desdeNombre, hacia: t.haciaNombre });
+        return J(t);
+      }
+      if ((m = path.match(/^\/api\/transferencias\/([^/]+)\/rechazar$/))) {
+        const t = transferencias.find((x) => x.id === m[1]); if (!t) return J({ error: "Transferencia no encontrada." }, 404);
+        if (t.estado !== "solicitada") return J({ error: `Esta transferencia ya está en estado "${t.estado}".` }, 400);
+        t.estado = "rechazada";
+        return J(t);
       }
 
       if (path === "/api/configuracion/gastos" && (!opts || opts.method !== "POST")) {
