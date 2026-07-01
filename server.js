@@ -261,6 +261,16 @@ app.get("/api/actividad", (req, res) => {
   res.json(data.getActividad());
 });
 
+// --- Respaldo exportable/importable (ver nota de seguridad en Olimpo Control) ---
+app.get("/api/respaldo/exportar", (req, res) => {
+  res.json(data.exportarTodo());
+});
+app.post("/api/respaldo/importar", (req, res) => {
+  const r = data.importarTodo(req.body);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json({ ok: true });
+});
+
 // --- Configuración: gastos mensuales (siempre local, sin importar el modo) ---
 app.get("/api/configuracion/gastos", (req, res) => {
   res.json(data.getGastosMensuales(req.query.ubicacionId));

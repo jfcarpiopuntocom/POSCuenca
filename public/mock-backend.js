@@ -199,6 +199,24 @@
 
       if (path === "/api/actividad") return J(movimientos.slice().reverse().slice(0, 100));
 
+      if (path === "/api/respaldo/exportar") {
+        return J({ modo: "demo-estatico", ubicaciones, productos, ventas, movimientos, configuracion: { gastosMensuales } });
+      }
+      if (path === "/api/respaldo/importar") {
+        try {
+          if (!body.productos || !body.ubicaciones) return J({ error: "El archivo no parece un respaldo válido." }, 400);
+          productos.length = 0; productos.push(...body.productos);
+          ubicaciones.length = 0; ubicaciones.push(...body.ubicaciones);
+          ventas.length = 0; ventas.push(...(body.ventas || []));
+          movimientos.length = 0; movimientos.push(...(body.movimientos || []));
+          if (body.configuracion && body.configuracion.gastosMensuales) {
+            Object.keys(gastosMensuales).forEach((k) => delete gastosMensuales[k]);
+            Object.assign(gastosMensuales, body.configuracion.gastosMensuales);
+          }
+          return J({ ok: true });
+        } catch (e) { return J({ error: "No se pudo importar: " + String(e) }, 400); }
+      }
+
       if (path === "/api/configuracion/gastos" && (!opts || opts.method !== "POST")) {
         if (!uid || uid === "todas") return J({ ubicacionId: "todas", gastosMensuales: +Object.values(gastosMensuales).reduce((a, v) => a + v, 0).toFixed(2), porUbicacion: gastosMensuales });
         return J({ ubicacionId: uid, gastosMensuales: gastosMensuales[uid] || 0 });

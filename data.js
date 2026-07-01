@@ -31,6 +31,33 @@ function setGastosMensuales(ubicacionId, monto) {
   db.set(`configuracion.gastosMensuales.${ubicacionId}`, Number(monto.toFixed(2))).write();
 }
 
+// Respaldo exportable/importable — ver nota larga en Olimpo Control/data.js.
+function exportarTodo() {
+  if (MODO_LOYVERSE) {
+    return {
+      modo: "loyverse",
+      aviso: "Productos, ventas e inventario viven en Loyverse — respáldalos desde ahí. Este archivo solo contiene movimientos y gastos locales.",
+      movimientos: db.get("movimientos").value(),
+      configuracion: db.get("configuracion").value(),
+    };
+  }
+  return { modo: "demo", ...db.getState() };
+}
+
+function importarTodo(datos) {
+  if (!datos || typeof datos !== "object") return { error: "Archivo de respaldo inválido." };
+  if (MODO_LOYVERSE) {
+    if (datos.movimientos) db.set("movimientos", datos.movimientos).write();
+    if (datos.configuracion) db.set("configuracion", datos.configuracion).write();
+    return { ok: true };
+  }
+  if (datos.modo && datos.modo !== "demo") return { error: "Este respaldo es de otro modo (Loyverse) y no aplica aquí." };
+  const { modo, ...estado } = datos;
+  if (!estado.productos || !estado.ubicaciones) return { error: "El archivo no parece un respaldo válido de POSCuenca." };
+  db.setState(estado);
+  return { ok: true };
+}
+
 if (MODO_LOYVERSE) {
   // ====================== MODO LOYVERSE (real) ======================
   module.exports = {
@@ -123,6 +150,8 @@ if (MODO_LOYVERSE) {
     getActividad,
     getGastosMensuales,
     setGastosMensuales,
+    exportarTodo,
+    importarTodo,
   };
 } else {
   // ====================== MODO DEMO (local, sin token) ======================
@@ -256,5 +285,7 @@ if (MODO_LOYVERSE) {
     getActividad,
     getGastosMensuales,
     setGastosMensuales,
+    exportarTodo,
+    importarTodo,
   };
 }
