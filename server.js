@@ -104,6 +104,7 @@ async function toFicha(p) {
     fechaCaducidad: p.fechaCaducidad || null,
     diasParaVencer: dias,
     metodoCosteo: p.metodoCosteo || "FIFO",
+    foto: p.foto || null,
   };
 }
 
@@ -225,6 +226,22 @@ app.post("/api/productos", asyncRoute(async (req, res) => {
 }));
 
 // --- Umbrales (puntos de reorden, editables por el propietario/admin) ---
+// Edicion libre de la ficha (dueno): nombre, foto, precios, proveedor y codigo
+// interno. El gating por rol vive en la UI (el empleado nunca ve Editar).
+app.patch("/api/productos/:id", asyncRoute(async (req, res) => {
+  const r = await data.actualizarProducto(req.params.id, req.body);
+  if (r && r.error) return res.status(400).json({ error: r.error });
+  if (!r) return res.status(404).json({ error: "Producto no encontrado." });
+  res.json(await toFicha(r));
+}));
+
+// Borrado definitivo (dueno, con doble confirmacion en la UI).
+app.delete("/api/productos/:id", asyncRoute(async (req, res) => {
+  const r = await data.eliminarProducto(req.params.id);
+  if (r && r.error) return res.status(400).json({ error: r.error });
+  res.json({ ok: true });
+}));
+
 app.post("/api/productos/:id/umbrales", asyncRoute(async (req, res) => {
   const p = await data.getProducto(req.params.id);
   if (!p) return res.status(404).json({ error: "Producto no encontrado." });
