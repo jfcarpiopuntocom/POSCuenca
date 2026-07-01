@@ -719,6 +719,14 @@
         <div class="etiqueta">Tu inventario vale</div>
         <div class="valor" id="resInventario">$0.00</div>
       </div>
+      <div class="tarjeta tag-card">
+        <div class="etiqueta">Ventas hoy</div>
+        <div class="valor" id="resVentasCount">0</div>
+      </div>
+      <div class="tarjeta tag-card">
+        <div class="etiqueta">Venta promedio</div>
+        <div class="valor" id="resTicketProm">$0.00</div>
+      </div>
     </div>
 
     <h3 class="seccion">Alertas de hoy</h3>
@@ -862,6 +870,11 @@
   function hoyISO() {
     return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   }
+  // Días reales del mes actual (28/29/30/31) — espejo de diasEnMesActual() en server.js.
+  function diasEnMesActual() {
+    const [anio, mes] = hoyISO().split("-").map(Number);
+    return new Date(anio, mes, 0).getDate();
+  }
 
   const ubicaciones = [
       {
@@ -999,8 +1012,20 @@
         const cant = Number.isInteger(body.cantidad) && body.cantidad > 0 ? body.cantidad : 1;
         if (p.stockActual < cant) return J({ error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` }, 400);
         p.stockActual -= cant;
-        ventas.push({ productoId: p.id, ubicacionId: p.ubicacionId, cantidad: cant, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString() });
+        const ventaId = String(Date.now() + Math.random());
+        ventas.push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad: cant, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString() });
         mov("venta", { producto: p.nombre, cantidad: cant, total: +(p.precio * cant).toFixed(2), ubicacion: nombreUbic(p.ubicacionId) });
+        return J({ producto: ficha(p), ventaId });
+      }
+      if ((m = path.match(/^\/api\/ventas\/([^/]+)\/anular$/))) {
+        const idx = ventas.findIndex((v) => v.id === m[1]);
+        if (idx === -1) return J({ error: "Esta venta ya no se puede anular (pasó el tiempo o ya se anuló)." }, 400);
+        const venta = ventas[idx];
+        const p = productos.find((x) => x.id === venta.productoId);
+        if (!p) return J({ error: "Producto no encontrado." }, 404);
+        p.stockActual += venta.cantidad;
+        ventas.splice(idx, 1);
+        mov("anulacion", { producto: p.nombre, cantidad: venta.cantidad, ubicacion: nombreUbic(p.ubicacionId) });
         return J({ producto: ficha(p) });
       }
       if ((m = path.match(/^\/api\/productos\/([^/]+)\/ajustar$/))) {
@@ -1054,7 +1079,7 @@
         const ing = vh.reduce((a, v) => a + v.precioUnit * v.cantidad, 0);
         const cv = vh.reduce((a, v) => a + v.costoUnit * v.cantidad, 0);
         const gm = (!uid || uid === "todas") ? Object.values(gastosMensuales).reduce((a, v) => a + v, 0) : (gastosMensuales[uid] || 0);
-        const go = +(gm / 30).toFixed(2);
+        const go = +(gm / diasEnMesActual()).toFixed(2);
         return J({ ingresos: +ing.toFixed(2), costoVentas: +cv.toFixed(2), utilidadBruta: +(ing - cv).toFixed(2), gastosOperativos: go, utilidadNeta: +(ing - cv - go).toFixed(2) });
       }
       if (path === "/api/reportes/balance") {
@@ -1147,6 +1172,9 @@ async function cargarHoy(){
   document.getElementById("resSale").textContent = fmtMoney(data.resumenDia.sale);
   document.getElementById("resGanancia").textContent = fmtMoney(data.resumenDia.gananciaHoy);
   document.getElementById("resInventario").textContent = fmtMoney(data.resumenDia.inventarioValorizado);
+  document.getElementById("resVentasCount").textContent = data.resumenDia.ventasCount;
+  const ticketProm = data.resumenDia.ventasCount > 0 ? data.resumenDia.entra / data.resumenDia.ventasCount : 0;
+  document.getElementById("resTicketProm").textContent = fmtMoney(ticketProm);
 
   const puntito = (color) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:currentColor;margin-right:9px;flex-shrink:0;"></span>`;
   const lista = document.getElementById("listaAlertas");
@@ -1217,7 +1245,45 @@ async function ejecutarEscaneo(){
   }
   const p = await res.json();
   pintarFicha(p);
+  sonarBeepExito();
 }
+
+// --- Beep de confirmación (tronco de UX de escaneo) ---
+// Un tono corto vía Web Audio API cuando el escaneo encuentra el producto —
+// el cajero no necesita mirar la pantalla para saber que la lectura fue
+// exitosa. Sin dependencias, sin archivo de audio (todo generado en código).
+let audioCtxBeep = null;
+function sonarBeepExito(){
+  try {
+    audioCtxBeep = audioCtxBeep || new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtxBeep.createOscillator();
+    const gain = audioCtxBeep.createGain();
+    osc.type = "sine"; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, audioCtxBeep.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtxBeep.currentTime + 0.12);
+    osc.connect(gain); gain.connect(audioCtxBeep.destination);
+    osc.start(); osc.stop(audioCtxBeep.currentTime + 0.12);
+  } catch (e) { /* Audio API no disponible: silencioso, no rompe el escaneo */ }
+}
+
+// --- Autofocus persistente en el input de escaneo ---
+// Si el operario toca fuera del campo (o el lector de código de barras le
+// quita el foco un instante), el foco vuelve solo en 2s — así el flujo es
+// "apuntar y escanear" sin tener que tocar la pantalla entre cada lectura.
+// Se cancela si el usuario está escribiendo en otro input (ej. el formulario
+// de "nuevo producto" que vive en esta misma vista) para no robarle el foco.
+let refocoTimer = null;
+document.getElementById("inputEscaner").addEventListener("blur", () => {
+  clearTimeout(refocoTimer);
+  refocoTimer = setTimeout(() => {
+    const vistaActiva = document.getElementById("vista-escanear");
+    const activo = document.activeElement;
+    const otroInputEnfocado = activo && activo !== document.body && activo.id !== "inputEscaner" && (activo.tagName === "INPUT" || activo.tagName === "SELECT" || activo.tagName === "TEXTAREA");
+    if (vistaActiva && vistaActiva.classList.contains("activa") && !otroInputEnfocado) {
+      document.getElementById("inputEscaner").focus();
+    }
+  }, 2000);
+});
 
 function mostrarFormNuevoProducto(codigoEscaneado){
   const contenedor = document.getElementById("fichaResultado");
@@ -1295,12 +1361,13 @@ function pintarFicha(p){
       ${p.perecible ? `<div class="linea"><strong>Vence:</strong> ${p.fechaCaducidad || "sin fecha"}${p.metodoCosteo ? ` · ${p.metodoCosteo}` : ""}</div>` : ""}
       <span class="badge-estado ${p.estado}">${p.mensaje}</span>
       <div class="acciones-rapidas">
-        <button class="vender" onclick="venderUno('${p.id}')">Vender 1</button>
+        <button class="vender" onclick="venderUno('${p.id}')" ${p.stockActual === 0 ? "disabled" : ""}>Vender 1</button>
         <button onclick="ajustar('${p.id}', 1)">+1 stock</button>
         <button onclick="ajustar('${p.id}', -1)">-1 stock</button>
         <button class="etiqueta" onclick="abrirEtiqueta('${p.id}')">Ver etiqueta</button>
       </div>
     </div>
+    <div id="oc-toast-venta"></div>
   `;
 }
 
@@ -1312,6 +1379,37 @@ async function venderUno(id){
   const data = await res.json();
   if (!res.ok){ alert(data.error); return; }
   pintarFicha(data.producto);
+  if (data.ventaId) mostrarToastAnular(data.ventaId, id);
+}
+
+let toastVentaTimer = null;
+function mostrarToastAnular(ventaId, productoId){
+  const cont = document.getElementById("oc-toast-venta");
+  if (!cont) return;
+  clearTimeout(toastVentaTimer);
+  cont.innerHTML = `<div class="tag-card" style="position:fixed;left:16px;right:16px;bottom:calc(var(--nav-h,78px) + 16px);z-index:400;
+    background:var(--azul-oscuro,#1c3049);color:var(--blanco-calido,#fbf5e8);padding:14px 16px;border-radius:8px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;" id="oc-toast-anular">
+    <span>Venta registrada — toca aquí para anular</span>
+    <strong id="oc-toast-cuenta">5s</strong>
+  </div>`;
+  let restante = 5;
+  const el = document.getElementById("oc-toast-anular");
+  const cuenta = document.getElementById("oc-toast-cuenta");
+  const intervalo = setInterval(() => {
+    restante -= 1;
+    if (cuenta) cuenta.textContent = restante + "s";
+    if (restante <= 0) { clearInterval(intervalo); cont.innerHTML = ""; }
+  }, 1000);
+  el.addEventListener("click", async () => {
+    clearInterval(intervalo);
+    cont.innerHTML = "";
+    const res = await fetch(`${API}/ventas/${ventaId}/anular`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok){ alert(data.error); return; }
+    pintarFicha(data.producto);
+  });
+  toastVentaTimer = setTimeout(() => { clearInterval(intervalo); cont.innerHTML = ""; }, 5000);
 }
 
 async function ajustar(id, delta){
@@ -1444,7 +1542,7 @@ async function cargarAvanzado(){
 
   document.getElementById("tablaBalance").innerHTML = `
     <tr><th>Concepto</th><th>Monto</th></tr>
-    <tr><td>Efectivo estimado</td><td>${fmtMoney(balance.activos.efectivoEstimado)}</td></tr>
+    <tr><td>Ingresos del día estimados</td><td>${fmtMoney(balance.activos.efectivoEstimado)}</td></tr>
     <tr><td>Inventario valorizado</td><td>${fmtMoney(balance.activos.inventarioValorizado)}</td></tr>
     <tr><td><strong>Total activos</strong></td><td><strong>${fmtMoney(balance.activos.total)}</strong></td></tr>
   `;

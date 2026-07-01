@@ -31,6 +31,15 @@ function hoyISO() {
   return f.format(new Date()); // en-CA -> YYYY-MM-DD
 }
 
+// Días reales del mes actual en la zona horaria de Guayaquil (28/29/30/31,
+// no un fijo "30"). El prorrateo diario de gastos mensuales debe dividir
+// entre lo que el mes realmente tiene — dividir siempre entre 30 subestima
+// el gasto diario en enero/marzo/etc. (31 días) y lo sobrestima en febrero.
+function diasEnMesActual() {
+  const [anio, mes] = hoyISO().split("-").map(Number); // YYYY-MM-DD
+  return new Date(anio, mes, 0).getDate(); // día 0 del mes siguiente = último día de este mes
+}
+
 // ---------- Helpers de negocio ----------
 // Días entre hoy (Ecuador) y una fecha "YYYY-MM-DD". Negativo = ya venció.
 function diasParaVencer(fechaCaducidad) {
@@ -213,6 +222,13 @@ app.post("/api/productos/:id/venta", asyncRoute(async (req, res) => {
   const cantidad = Number.isInteger(req.body.cantidad) && req.body.cantidad > 0 ? req.body.cantidad : 1;
   const r = await data.venderUno(req.params.id, cantidad);
   if (r.error) return res.status(400).json({ error: r.error });
+  res.json({ producto: await toFicha(r.producto), ventaId: r.ventaId });
+}));
+
+// --- Anular venta reciente (tronco 2: "deshacer", ventana de 5s en la UI) ---
+app.post("/api/ventas/:ventaId/anular", asyncRoute(async (req, res) => {
+  const r = await data.anularVenta(req.params.ventaId);
+  if (r.error) return res.status(400).json({ error: r.error });
   res.json({ producto: await toFicha(r.producto) });
 }));
 
@@ -279,7 +295,7 @@ app.get("/api/reportes/pl", asyncRoute(async (req, res) => {
   const utilidadBruta = ingresos - costoVentas;
 
   const { gastosMensuales } = data.getGastosMensuales(ubicacionId);
-  const gastosOperativos = Number((gastosMensuales / 30).toFixed(2));
+  const gastosOperativos = Number((gastosMensuales / diasEnMesActual()).toFixed(2));
   const utilidadNeta = utilidadBruta - gastosOperativos;
 
   res.json({

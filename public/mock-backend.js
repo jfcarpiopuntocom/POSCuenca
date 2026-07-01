@@ -10,6 +10,11 @@
   function hoyISO() {
     return new Intl.DateTimeFormat("en-CA", { timeZone: ZONA, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   }
+  // Días reales del mes actual (28/29/30/31) — espejo de diasEnMesActual() en server.js.
+  function diasEnMesActual() {
+    const [anio, mes] = hoyISO().split("-").map(Number);
+    return new Date(anio, mes, 0).getDate();
+  }
 
   const ubicaciones = [
       {
@@ -147,8 +152,20 @@
         const cant = Number.isInteger(body.cantidad) && body.cantidad > 0 ? body.cantidad : 1;
         if (p.stockActual < cant) return J({ error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` }, 400);
         p.stockActual -= cant;
-        ventas.push({ productoId: p.id, ubicacionId: p.ubicacionId, cantidad: cant, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString() });
+        const ventaId = String(Date.now() + Math.random());
+        ventas.push({ id: ventaId, productoId: p.id, ubicacionId: p.ubicacionId, cantidad: cant, precioUnit: p.precio, costoUnit: p.costo, fecha: new Date().toISOString() });
         mov("venta", { producto: p.nombre, cantidad: cant, total: +(p.precio * cant).toFixed(2), ubicacion: nombreUbic(p.ubicacionId) });
+        return J({ producto: ficha(p), ventaId });
+      }
+      if ((m = path.match(/^\/api\/ventas\/([^/]+)\/anular$/))) {
+        const idx = ventas.findIndex((v) => v.id === m[1]);
+        if (idx === -1) return J({ error: "Esta venta ya no se puede anular (pasó el tiempo o ya se anuló)." }, 400);
+        const venta = ventas[idx];
+        const p = productos.find((x) => x.id === venta.productoId);
+        if (!p) return J({ error: "Producto no encontrado." }, 404);
+        p.stockActual += venta.cantidad;
+        ventas.splice(idx, 1);
+        mov("anulacion", { producto: p.nombre, cantidad: venta.cantidad, ubicacion: nombreUbic(p.ubicacionId) });
         return J({ producto: ficha(p) });
       }
       if ((m = path.match(/^\/api\/productos\/([^/]+)\/ajustar$/))) {
@@ -202,7 +219,7 @@
         const ing = vh.reduce((a, v) => a + v.precioUnit * v.cantidad, 0);
         const cv = vh.reduce((a, v) => a + v.costoUnit * v.cantidad, 0);
         const gm = (!uid || uid === "todas") ? Object.values(gastosMensuales).reduce((a, v) => a + v, 0) : (gastosMensuales[uid] || 0);
-        const go = +(gm / 30).toFixed(2);
+        const go = +(gm / diasEnMesActual()).toFixed(2);
         return J({ ingresos: +ing.toFixed(2), costoVentas: +cv.toFixed(2), utilidadBruta: +(ing - cv).toFixed(2), gastosOperativos: go, utilidadNeta: +(ing - cv - go).toFixed(2) });
       }
       if (path === "/api/reportes/balance") {
