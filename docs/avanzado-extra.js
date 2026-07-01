@@ -9,6 +9,10 @@
 
   function ubic() { const s = $("selectUbicacion"); return s ? s.value : "todas"; }
   const money = (n) => "$" + Number(n || 0).toFixed(2);
+  // Distingue "primer registro libre de correo" de "re-registro tras código
+  // maestro" (SÍ debe encadenar directo a poner un PIN nuevo). Ver mismo
+  // patrón en Olimpo Control.
+  let reasignacionViaMaestro = false;
 
   function init() {
     const vista = $("vista-avanzado");
@@ -370,7 +374,12 @@
       $("oc-email-save").addEventListener("click", () => {
         const v = $("oc-email-in").value.trim();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { msg("oc-email-msg", "Correo no válido.", "var(--rojo)"); return; }
-        window.OCSecure.actualizarCorreo(v); pintarEmail();
+        window.OCSecure.actualizarCorreo(v);
+        pintarEmail();
+        if (reasignacionViaMaestro) {
+          reasignacionViaMaestro = false;
+          window.OCAuth.abrirFlujoReset(v);
+        }
       });
     }
   }
@@ -397,6 +406,7 @@
       const ok = await window.OCSecure.verificarMaestro(codigo);
       if (!ok) { cont.querySelector("#mst-msg").textContent = "Código maestro incorrecto."; return; }
       window.OCSecure.actualizarCorreo("");
+      reasignacionViaMaestro = true;
       cont.remove();
       pintarEmail();
     });

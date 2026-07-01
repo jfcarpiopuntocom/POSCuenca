@@ -373,6 +373,7 @@
     rolActual: () => rol,
     enmascarar,
     listo: () => listo,
+    abrirFlujoReset,
     // Pide la subclave contable con su propio teclado (emojis barajados, casillas enmascaradas).
     pedirSubclaveContable() {
       return new Promise((resolve) => {
