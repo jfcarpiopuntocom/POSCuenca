@@ -1199,18 +1199,32 @@ async function cargarAvanzado(){
 }
 
 // --- Init ---
-(async function init(){
+// Reintenta una vez antes de rendirse (ver nota igual en Olimpo Control):
+// en la demo estática, mock-backend.js se carga externo y en red lenta puede
+// no haber interceptado fetch() a tiempo. El mensaje final nunca debe hablar
+// de "server.js" cuando window.OC_DEMO está activo (seteado por mock-backend.js).
+async function cargarDashboardInicial(intento){
   try{
     await cargarUbicaciones();
     await cargarHoy();
   }catch(err){
-    console.error("No se pudo conectar con el servidor:", err);
+    if (!intento) {
+      await new Promise((r) => setTimeout(r, 400));
+      return cargarDashboardInicial(1);
+    }
+    console.error("No se pudo cargar el panel inicial:", err);
     const hero = document.getElementById("heroSemaforo");
     hero.className = "hero-semaforo tag-card amarillo";
-    document.getElementById("heroTitulo").textContent = "No se pudo conectar con el servidor.";
-    document.getElementById("heroSubtitulo").textContent = "Verifica que el backend (server.js) esté corriendo y vuelve a cargar la página.";
+    if (window.OC_DEMO) {
+      document.getElementById("heroTitulo").textContent = "Cargando la demo…";
+      document.getElementById("heroSubtitulo").textContent = "Si esto no cambia en unos segundos, recarga la página.";
+    } else {
+      document.getElementById("heroTitulo").textContent = "No se pudo conectar con el servidor.";
+      document.getElementById("heroSubtitulo").textContent = "Verifica que el backend (server.js) esté corriendo y vuelve a cargar la página.";
+    }
   }
-})();
+}
+cargarDashboardInicial(0);
 </script>
 
 <script src="/crypto-store.js"></script>
