@@ -161,9 +161,20 @@
     height:var(--nav-h);
     padding:4px 6px env(safe-area-inset-bottom, 4px);
     z-index:35;
+    /* Con 7 botones (Liquidaciones y Avanzado se agregaron después), flex:1
+       ya no cabía en pantallas angostas y los últimos quedaban totalmente
+       fuera del viewport, sin ninguna forma de llegar a ellos (ni siquiera
+       con swipe, porque nav no tenía overflow-x). Ahora se puede deslizar
+       horizontalmente, y un botón parcialmente visible en el borde es la
+       pista de que hay más — sin flechas ni indicadores extra que mantener. */
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
   }
+  nav::-webkit-scrollbar{ display:none; }
   nav button{
-    flex:1;
+    flex:0 0 auto;
+    width:74px;
     display:flex;
     flex-direction:column;
     align-items:center;
@@ -683,10 +694,6 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.2V5a1 1 0 0 1 1-1h6.2L21 14.8 13.8 22 3 11.2z"></path><circle cx="7.6" cy="7.6" r="1.3" fill="currentColor" stroke="none"></circle></svg>
     <span>Etiquetas</span>
   </button>
-  <button data-vista="actividad">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,12 7,12 10,5 14,19 17,12 22,12"></polyline></svg>
-    <span>Actividad</span>
-  </button>
   <button data-vista="liquidaciones">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.5c0 3-6 1.5-6 4.5 0 1.4 1.3 2.5 3 2.5s3-1.1 3-2.5"></path></svg>
     <span>Liquidaciones</span>
@@ -770,12 +777,6 @@
     <div class="grid-etiquetas" id="gridEtiquetas"></div>
   </section>
 
-  <!-- VISTA: ACTIVIDAD -->
-  <section id="vista-actividad" class="vista">
-    <h3 class="seccion" style="margin-top:0;">Actividad reciente</h3>
-    <div id="listaActividad"></div>
-  </section>
-
   <!-- VISTA: LIQUIDACIONES (solo dueño) -->
   <section id="vista-liquidaciones" class="vista">
     <h3 class="seccion" style="margin-top:0;">Liquidaciones</h3>
@@ -787,14 +788,24 @@
   <section id="vista-avanzado" class="vista">
     <h3 class="seccion" style="margin-top:0;">Modo avanzado</h3>
     <div class="avanzado-aviso">
-      Esta sección es para el contador, el administrador o quien quiera ver el detalle técnico. José no la necesita para operar el día a día.
+      Esta sección es para el contador, el administrador o quien quiera ver el detalle técnico. El propietario no la necesita para operar el día a día.
     </div>
 
-    <h3 class="seccion" style="margin-top:0;">Gastos mensuales</h3>
+    <!-- Actividad ya no tiene botón propio en el nav (JFC, 2026-07-01: "eso
+         NO necesita un botón en el main") — vive aquí, es historial operativo,
+         no algo que se consulte varias veces al día como Hoy o Escanear. -->
+    <h3 class="seccion" style="margin-top:0;">Actividad reciente</h3>
+    <div id="listaActividad" class="tag-card" style="text-align:left;max-height:280px;overflow-y:auto;"></div>
+
+    <h3 class="seccion">Gastos mensuales</h3>
     <div class="panel-escaner tag-card" style="text-align:left;">
       <p>
-        Arriendo, luz, sueldos, internet, etc. Ingresa el total mensual de la ubicación seleccionada arriba. Se reparte entre 30 para estimar el gasto operativo del día en el P&amp;G.
+        Arriendo, luz, sueldos, internet, etc. Ingresa el total mensual de la ubicación seleccionada. Se reparte entre los días reales del mes para estimar el gasto operativo del día en el P&amp;G.
       </p>
+      <div id="gastosSelectorWrap" style="display:none;margin-bottom:12px;">
+        <label style="font-size:14px;font-weight:700;">Elige una ubicación para editar sus gastos:<br>
+          <select id="gastosUbicSelector" style="margin-top:6px;padding:8px;border:2px solid var(--rust);border-radius:5px;"></select></label>
+      </div>
       <input id="inputGastosMensuales" type="number" min="0" step="0.01" placeholder="Ej: 350.00" style="text-align:left; max-width:220px;">
       <br>
       <button class="ir" id="btnGuardarGastos">Guardar</button>
@@ -814,7 +825,7 @@
 </main>
 
 <footer>
-  POSCuenca — v0.1 — Capa visual y contable sobre Loyverse · J. F. Carpio
+  POSCuenca v1.0 · Amigable: sistemas de punto de venta · powered by <a href="https://jfcarpio.com" target="_blank" rel="noopener" style="color:#E8A020;-webkit-text-fill-color:#E8A020">jfcarpio.com</a>
 </footer>
 
 <!-- MODAL ETIQUETA -->
@@ -866,7 +877,7 @@ function vistaActivaId(){
 
 function refrescarVistaActiva(){
   const v = vistaActivaId();
-  const cargadores = { hoy: cargarHoy, inventario: cargarInventario, etiquetas: cargarEtiquetas, actividad: cargarActividad, avanzado: cargarAvanzado, liquidaciones: cargarLiquidaciones };
+  const cargadores = { hoy: cargarHoy, inventario: cargarInventario, etiquetas: cargarEtiquetas, avanzado: cargarAvanzado, liquidaciones: cargarLiquidaciones };
   const fn = cargadores[v];
   if (fn) Promise.resolve(fn()).catch(err => console.error(`Error cargando vista "${v}":`, err));
 }
@@ -1355,6 +1366,7 @@ async function cargarGastosMensuales(){
   const input = document.getElementById("inputGastosMensuales");
   const msg = document.getElementById("msgGastos");
   const btn = document.getElementById("btnGuardarGastos");
+  const selectorWrap = document.getElementById("gastosSelectorWrap");
   msg.textContent = "";
 
   const res = await fetch(`${API}/configuracion/gastos?ubicacionId=${ubicacionActual}`);
@@ -1364,10 +1376,25 @@ async function cargarGastosMensuales(){
   if (ubicacionActual === "todas"){
     input.disabled = true;
     btn.disabled = true;
-    msg.textContent = "Elige una ubicación específica arriba para editar sus gastos mensuales. Este número es la suma de todas.";
+    msg.textContent = `Este número es la suma de ${fmtMoney(data.gastosMensuales)} entre todas tus ubicaciones. Elige una abajo para editarla.`;
+    // Antes esto solo mostraba un mensaje y el dueño tenía que acordarse de
+    // subir hasta el selector del header — muchos pensaban que la caja
+    // estaba rota. Ahora el selector vive aquí mismo, al lado del problema.
+    selectorWrap.style.display = "block";
+    const sel = document.getElementById("gastosUbicSelector");
+    sel.innerHTML = ubicaciones.map(u => `<option value="${u.id}">${u.nombre}</option>`).join("");
+    if (!sel.dataset.ocListo) {
+      sel.dataset.ocListo = "1";
+      sel.addEventListener("change", () => {
+        document.getElementById("selectUbicacion").value = sel.value;
+        ubicacionActual = sel.value;
+        cargarGastosMensuales();
+      });
+    }
   } else {
     input.disabled = false;
     btn.disabled = false;
+    selectorWrap.style.display = "none";
   }
 }
 
@@ -1392,6 +1419,7 @@ document.getElementById("btnGuardarGastos").addEventListener("click", async () =
 
 async function cargarAvanzado(){
   await cargarGastosMensuales();
+  await cargarActividad();
   const [pl, balance, valorizado] = await Promise.all([
     fetch(`${API}/reportes/pl?ubicacionId=${ubicacionActual}`).then(r => r.json()),
     fetch(`${API}/reportes/balance?ubicacionId=${ubicacionActual}`).then(r => r.json()),
@@ -1400,7 +1428,9 @@ async function cargarAvanzado(){
 
   document.getElementById("tablaPL").innerHTML = `
     <tr><th>Concepto</th><th>Monto</th></tr>
-    <tr><td>Ingresos</td><td>${fmtMoney(pl.ingresos)}</td></tr>
+    <tr><td>Ventas cobradas (con IVA)</td><td>${fmtMoney(pl.ingresosConIva)}</td></tr>
+    <tr><td>IVA cobrado (15%, se liquida al SRI)</td><td>${fmtMoney(pl.ivaCobrado)}</td></tr>
+    <tr><td>Ingresos netos (sin IVA)</td><td>${fmtMoney(pl.ingresos)}</td></tr>
     <tr><td>Costo de ventas</td><td>${fmtMoney(pl.costoVentas)}</td></tr>
     <tr><td>Utilidad bruta</td><td>${fmtMoney(pl.utilidadBruta)}</td></tr>
     <tr><td>Gastos operativos</td><td>${fmtMoney(pl.gastosOperativos)}</td></tr>
