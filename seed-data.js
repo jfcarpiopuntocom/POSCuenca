@@ -2,10 +2,17 @@
 // Fuente única de verdad para la demo. db.js y public/mock-backend.js lo importan
 // para no desincronizarse. Precios en USD (moneda de Ecuador).
 
+// Campos agregados 2026-07-01 (tronco 16 + terreno para revenue sharing):
+//   activa: bool — una ubicación desactivada conserva TODO su historial
+//     (ventas, movimientos) pero deja de aparecer en el selector operativo y
+//     no puede recibir ventas nuevas. Es un "archivar", no un borrar.
+//   tipo: "propio" | "socio" | "franquicia" | "consignacion" — determina qué
+//     campos/reportes aplican. Hoy solo se guarda; el reparto de comisiones
+//     (brote 1 del árbol) todavía no lee este campo — es terreno listo.
 const ubicaciones = [
-  { id: "centro", nombre: "Local Centro Histórico" },
-  { id: "mercado", nombre: "Stand Mercado 10 de Agosto" },
-  { id: "feria", nombre: "Feria Artesanal El Otorongo" },
+  { id: "centro", nombre: "Local Centro Histórico", activa: true, tipo: "propio" },
+  { id: "mercado", nombre: "Stand Mercado 10 de Agosto", activa: true, tipo: "propio" },
+  { id: "feria", nombre: "Feria Artesanal El Otorongo", activa: true, tipo: "propio" },
 ];
 
 const productos = [

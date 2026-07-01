@@ -827,12 +827,25 @@ async function cargarUbicaciones(){
   const res = await fetch(`${API}/ubicaciones`);
   ubicaciones = await res.json();
   const sel = document.getElementById("selectUbicacion");
+  const valorPrevio = sel.value;
   sel.innerHTML = `<option value="todas">Todas las ubicaciones</option>` +
     ubicaciones.map(u => `<option value="${u.id}">${u.nombre}</option>`).join("");
-  sel.addEventListener("change", () => {
-    ubicacionActual = sel.value;
-    refrescarVistaActiva();
-  });
+  // Si la ubicación que estaba seleccionada ya no existe en la lista (ej. se
+  // desactivó), vuelve a "todas" en vez de quedar en un valor fantasma.
+  if ([...sel.options].some(o => o.value === valorPrevio)) sel.value = valorPrevio;
+  ubicacionActual = sel.value;
+  // cargarUbicaciones() ahora se llama repetidamente (tras crear/renombrar/
+  // desactivar una ubicación desde Avanzado, no solo al cargar la página).
+  // Antes esto agregaba un listener "change" nuevo cada vez que se llamaba
+  // — el mismo bug de listeners acumulados que ya se corrigió en el
+  // teclado de acceso. dataset.ocListo evita registrar el listener 2 veces.
+  if (!sel.dataset.ocListo) {
+    sel.dataset.ocListo = "1";
+    sel.addEventListener("change", () => {
+      ubicacionActual = sel.value;
+      refrescarVistaActiva();
+    });
+  }
 }
 
 function vistaActivaId(){

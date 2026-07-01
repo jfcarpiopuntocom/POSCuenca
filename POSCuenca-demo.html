@@ -879,15 +879,21 @@
   const ubicaciones = [
       {
           "id": "centro",
-          "nombre": "Local Centro Histórico"
+          "nombre": "Local Centro Histórico",
+          "activa": true,
+          "tipo": "propio"
       },
       {
           "id": "mercado",
-          "nombre": "Stand Mercado 10 de Agosto"
+          "nombre": "Stand Mercado 10 de Agosto",
+          "activa": true,
+          "tipo": "propio"
       },
       {
           "id": "feria",
-          "nombre": "Feria Artesanal El Otorongo"
+          "nombre": "Feria Artesanal El Otorongo",
+          "activa": true,
+          "tipo": "propio"
       }
   ];
 
@@ -968,8 +974,31 @@
       const body = opts && opts.body ? JSON.parse(opts.body) : {};
       const uid = q.get("ubicacionId");
 
+      let m;
       if (path === "/api/modo") return J({ modo: "demo-estatico" });
-      if (path === "/api/ubicaciones") return J(ubicaciones);
+      if (path === "/api/ubicaciones" && (!opts || opts.method !== "POST")) {
+        const soloActivas = q.get("todas") !== "1";
+        return J(soloActivas ? ubicaciones.filter((u) => u.activa !== false) : ubicaciones);
+      }
+      if (path === "/api/ubicaciones" && opts && opts.method === "POST") {
+        if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre de la ubicación es obligatorio." }, 400);
+        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true };
+        ubicaciones.push(nueva);
+        mov("ubicacion-alta", { ubicacion: nueva.nombre });
+        return J(nueva);
+      }
+      if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)$/)) && opts && opts.method === "PUT") {
+        const u = ubicaciones.find((x) => x.id === m[1]); if (!u) return J({ error: "Ubicación no encontrada." }, 404);
+        if (body.nombre && body.nombre.trim()) u.nombre = body.nombre.trim();
+        if (body.tipo) u.tipo = body.tipo;
+        return J(u);
+      }
+      if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)\/(activar|desactivar)$/))) {
+        const u = ubicaciones.find((x) => x.id === m[1]); if (!u) return J({ error: "Ubicación no encontrada." }, 404);
+        u.activa = m[2] === "activar";
+        mov(u.activa ? "ubicacion-reactivada" : "ubicacion-desactivada", { ubicacion: u.nombre });
+        return J(u);
+      }
 
       if (path === "/api/dashboard") {
         const ps = filtrar(uid), vh = ventasHoyDe(uid);
@@ -993,6 +1022,8 @@
       if (path === "/api/productos" && opts && opts.method === "POST") {
         if (!body.nombre || !body.barcode) return J({ error: "Falta el nombre o el código de barras." }, 400);
         if (body.perecible && !body.fechaCaducidad) return J({ error: "Si el producto expira, indica su fecha de caducidad." }, 400);
+        const ubicNueva = body.ubicacionId && body.ubicacionId !== "todas" ? ubicaciones.find((x) => x.id === body.ubicacionId) : null;
+        if (ubicNueva && ubicNueva.activa === false) return J({ error: `"${ubicNueva.nombre}" está desactivada — reactívala en Avanzado antes de agregar productos ahí.` }, 400);
         const nuevo = {
           id: "p" + Math.random().toString(36).slice(2, 9), nombre: body.nombre, categoria: body.categoria || "General",
           sku: body.sku || body.barcode, barcode: body.barcode, ubicacionId: body.ubicacionId || "todas",
@@ -1006,9 +1037,10 @@
         return J(ficha(nuevo));
       }
 
-      let m;
       if ((m = path.match(/^\/api\/productos\/([^/]+)\/venta$/))) {
         const p = productos.find((x) => x.id === m[1]); if (!p) return J({ error: "Producto no encontrado." }, 404);
+        const ubicP = ubicaciones.find((x) => x.id === p.ubicacionId);
+        if (ubicP && ubicP.activa === false) return J({ error: `"${ubicP.nombre}" está desactivada — no admite ventas nuevas.` }, 400);
         const cant = Number.isInteger(body.cantidad) && body.cantidad > 0 ? body.cantidad : 1;
         if (p.stockActual < cant) return J({ error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` }, 400);
         p.stockActual -= cant;
@@ -1134,12 +1166,25 @@ async function cargarUbicaciones(){
   const res = await fetch(`${API}/ubicaciones`);
   ubicaciones = await res.json();
   const sel = document.getElementById("selectUbicacion");
+  const valorPrevio = sel.value;
   sel.innerHTML = `<option value="todas">Todas las ubicaciones</option>` +
     ubicaciones.map(u => `<option value="${u.id}">${u.nombre}</option>`).join("");
-  sel.addEventListener("change", () => {
-    ubicacionActual = sel.value;
-    refrescarVistaActiva();
-  });
+  // Si la ubicación que estaba seleccionada ya no existe en la lista (ej. se
+  // desactivó), vuelve a "todas" en vez de quedar en un valor fantasma.
+  if ([...sel.options].some(o => o.value === valorPrevio)) sel.value = valorPrevio;
+  ubicacionActual = sel.value;
+  // cargarUbicaciones() ahora se llama repetidamente (tras crear/renombrar/
+  // desactivar una ubicación desde Avanzado, no solo al cargar la página).
+  // Antes esto agregaba un listener "change" nuevo cada vez que se llamaba
+  // — el mismo bug de listeners acumulados que ya se corrigió en el
+  // teclado de acceso. dataset.ocListo evita registrar el listener 2 veces.
+  if (!sel.dataset.ocListo) {
+    sel.dataset.ocListo = "1";
+    sel.addEventListener("change", () => {
+      ubicacionActual = sel.value;
+      refrescarVistaActiva();
+    });
+  }
 }
 
 function vistaActivaId(){
@@ -2478,6 +2523,47 @@ const EMAILJS_CONFIG = {
       </div>`;
     vista.appendChild(gestion);
 
+    // --- Ubicaciones (crear/renombrar/desactivar) — solo POSCuenca, JFC 2026-07-01.
+    // Vive fuera de la capa contable (es configuración operativa, no dinero),
+    // igual que gastos mensuales. Desactivar NO borra historial — ver nota
+    // larga en data.js: solo deja de aparecer en el selector operativo y
+    // deja de admitir ventas/altas de producto nuevas.
+    const ubicPanel = document.createElement("div");
+    ubicPanel.className = "panel-escaner tag-card";
+    ubicPanel.style.cssText = "text-align:left;margin-top:22px;";
+    ubicPanel.innerHTML = `
+      <h3 class="seccion" style="margin-top:0;">Ubicaciones</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea, renombra o desactiva locales, puestos o mostradores. Desactivar conserva todo el historial, solo deja de recibir ventas nuevas.</p>
+      <div id="oc-ubic-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+        <label style="font-size:13px;">Nombre<br>
+          <input id="oc-ubic-nombre" type="text" placeholder="Ej: Feria de Diciembre" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;font-family:var(--font-mono);width:220px;"></label>
+        <label style="font-size:13px;">Tipo<br>
+          <select id="oc-ubic-tipo" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;">
+            <option value="propio">Propio</option>
+            <option value="socio">Socio</option>
+            <option value="franquicia">Franquicia</option>
+            <option value="consignacion">Consignación</option>
+          </select></label>
+        <button id="oc-ubic-crear" class="ir" style="background:var(--azul-medio);color:var(--blanco-calido);border-color:var(--azul-oscuro);">+ Agregar</button>
+      </div>
+      <p id="oc-ubic-msg" style="font-size:14px;margin-top:8px;"></p>`;
+    vista.appendChild(ubicPanel);
+    renderUbicaciones();
+
+    $("oc-ubic-crear").addEventListener("click", async () => {
+      const nombre = $("oc-ubic-nombre").value.trim();
+      const tipo = $("oc-ubic-tipo").value;
+      if (!nombre) { msg("oc-ubic-msg", "El nombre es obligatorio.", "var(--rojo)"); return; }
+      const res = await fetch(`${API}/ubicaciones`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, tipo }) });
+      const r = await res.json();
+      if (!res.ok) { msg("oc-ubic-msg", r.error, "var(--rojo)"); return; }
+      $("oc-ubic-nombre").value = "";
+      msg("oc-ubic-msg", `"${r.nombre}" creada.`, "var(--verde)");
+      renderUbicaciones();
+      if (window.cargarUbicaciones) window.cargarUbicaciones();
+    });
+
     window.OCAuth.listo().then(() => { pintarEmail(); });
 
     // Cambiar los 3 PINs rota TODO (nuevo salt + nuevos hashes). Por eso se
@@ -2536,6 +2622,39 @@ const EMAILJS_CONFIG = {
   // cualquiera con el dispositivo del dueño secuestre la cuenta apuntando la
   // recuperación a un correo propio. Si NO hay correo (primera vez), el
   // dueño lo registra libre, sin master. Ver nota larga en crypto-store.js.
+  async function renderUbicaciones() {
+    const cont = $("oc-ubic-lista");
+    if (!cont) return;
+    const lista = await (await fetch(`${API}/ubicaciones?todas=1`)).json();
+    cont.innerHTML = lista.map((u) => `
+      <div class="tag-card" style="display:flex;align-items:center;gap:10px;padding:10px 12px;${u.activa === false ? "opacity:.55;" : ""}">
+        <div style="flex:1;">
+          <strong>${u.nombre}</strong>
+          <span style="font-size:12px;color:var(--ink-soft);"> · ${u.tipo || "propio"}${u.activa === false ? " · DESACTIVADA" : ""}</span>
+        </div>
+        <button data-ubic-renombrar="${u.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--azul-medio);border-radius:5px;background:transparent;color:var(--azul-medio);cursor:pointer;">Renombrar</button>
+        <button data-ubic-toggle="${u.id}" data-activa="${u.activa !== false}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rust);border-radius:5px;background:transparent;color:var(--rust);cursor:pointer;">${u.activa === false ? "Reactivar" : "Desactivar"}</button>
+      </div>`).join("");
+
+    cont.querySelectorAll("[data-ubic-renombrar]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const nuevo = prompt("Nuevo nombre:");
+        if (!nuevo || !nuevo.trim()) return;
+        const res = await fetch(`${API}/ubicaciones/${btn.dataset.ubicRenombrar}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: nuevo.trim() }) });
+        if (res.ok) { renderUbicaciones(); if (window.cargarUbicaciones) window.cargarUbicaciones(); }
+      });
+    });
+    cont.querySelectorAll("[data-ubic-toggle]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const activaAhora = btn.dataset.activa === "true";
+        const accion = activaAhora ? "desactivar" : "activar";
+        if (activaAhora && !confirm("Esta ubicación dejará de recibir ventas nuevas. Su historial se conserva. ¿Continuar?")) return;
+        const res = await fetch(`${API}/ubicaciones/${btn.dataset.ubicToggle}/${accion}`, { method: "POST" });
+        if (res.ok) { renderUbicaciones(); if (window.cargarUbicaciones) window.cargarUbicaciones(); }
+      });
+    });
+  }
+
   function pintarEmail() {
     const email = window.OCSecure.leerCorreo();
     const row = $("oc-email-row");

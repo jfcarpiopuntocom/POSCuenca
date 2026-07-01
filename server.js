@@ -123,8 +123,34 @@ app.get("/api/modo", (req, res) => {
 });
 
 // --- Ubicaciones ---
+// ?todas=1 incluye las desactivadas (para el panel de administración); sin
+// ese parámetro, solo las activas (lo que usa el selector operativo normal).
 app.get("/api/ubicaciones", asyncRoute(async (req, res) => {
-  res.json(await data.getUbicaciones());
+  res.json(await data.getUbicaciones(req.query.todas !== "1"));
+}));
+
+app.post("/api/ubicaciones", asyncRoute(async (req, res) => {
+  const r = await data.crearUbicacion(req.body);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+
+app.put("/api/ubicaciones/:id", asyncRoute(async (req, res) => {
+  const r = await data.actualizarUbicacion(req.params.id, req.body);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+
+app.post("/api/ubicaciones/:id/activar", asyncRoute(async (req, res) => {
+  const r = await data.setActivaUbicacion(req.params.id, true);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
+}));
+
+app.post("/api/ubicaciones/:id/desactivar", asyncRoute(async (req, res) => {
+  const r = await data.setActivaUbicacion(req.params.id, false);
+  if (r.error) return res.status(400).json({ error: r.error });
+  res.json(r);
 }));
 
 // --- Dashboard (vista Hoy) ---

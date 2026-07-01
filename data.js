@@ -67,6 +67,18 @@ if (MODO_LOYVERSE) {
       return loyverse.getUbicaciones();
     },
 
+    // Las ubicaciones (tiendas) en modo Loyverse se administran EN Loyverse
+    // mismo — es la fuente de verdad. No duplicamos su gestión aquí.
+    async crearUbicacion() {
+      return { error: "Con Loyverse conectado, crea ubicaciones directamente en Loyverse — se reflejarán automáticamente aquí." };
+    },
+    async actualizarUbicacion() {
+      return { error: "Con Loyverse conectado, edita ubicaciones directamente en Loyverse." };
+    },
+    async setActivaUbicacion() {
+      return { error: "Con Loyverse conectado, activa/desactiva tiendas directamente en Loyverse." };
+    },
+
     async nombreUbicacion(id) {
       const u = (await loyverse.getUbicaciones()).find((x) => x.id === id);
       return u ? u.nombre : "Ubicación desconocida";
@@ -163,12 +175,47 @@ if (MODO_LOYVERSE) {
   module.exports = {
     modo: "demo",
 
-    async getUbicaciones() {
-      return db.get("ubicaciones").value();
+    // soloActivas=true (default) es lo que usa el selector operativo del día
+    // a día — una ubicación desactivada no debe ofrecerse para vender ahí.
+    // El panel de administración de ubicaciones pide soloActivas=false para
+    // poder mostrar (y reactivar) las archivadas.
+    async getUbicaciones(soloActivas = true) {
+      const todas = db.get("ubicaciones").value();
+      return soloActivas ? todas.filter((u) => u.activa !== false) : todas;
     },
 
     async nombreUbicacion(id) {
       return nombreUbicacionLocal(id);
+    },
+
+    async crearUbicacion({ nombre, tipo }) {
+      if (!nombre || !nombre.trim()) return { error: "El nombre de la ubicación es obligatorio." };
+      const u = { id: randomUUID(), nombre: nombre.trim(), tipo: tipo || "propio", activa: true };
+      db.get("ubicaciones").push(u).write();
+      registrarMovimiento("ubicacion-alta", { ubicacion: u.nombre });
+      return u;
+    },
+
+    async actualizarUbicacion(id, { nombre, tipo }) {
+      const u = db.get("ubicaciones").find({ id }).value();
+      if (!u) return { error: "Ubicación no encontrada." };
+      const cambios = {};
+      if (nombre && nombre.trim()) cambios.nombre = nombre.trim();
+      if (tipo) cambios.tipo = tipo;
+      db.get("ubicaciones").find({ id }).assign(cambios).write();
+      return db.get("ubicaciones").find({ id }).value();
+    },
+
+    // Desactivar NO borra nada — ventas y movimientos históricos de esta
+    // ubicación siguen intactos y siguen sumando en reportes que consulten
+    // "todas". Solo deja de aparecer en el selector operativo y no admite
+    // ventas nuevas (ver guard en venderUno/crearProducto más abajo).
+    async setActivaUbicacion(id, activa) {
+      const u = db.get("ubicaciones").find({ id }).value();
+      if (!u) return { error: "Ubicación no encontrada." };
+      db.get("ubicaciones").find({ id }).assign({ activa: !!activa }).write();
+      registrarMovimiento(activa ? "ubicacion-reactivada" : "ubicacion-desactivada", { ubicacion: u.nombre });
+      return db.get("ubicaciones").find({ id }).value();
     },
 
     async getProductos(ubicacionId) {
@@ -195,6 +242,8 @@ if (MODO_LOYVERSE) {
     // catálogo se gestiona en Loyverse mismo; ver nota en server.js). Se usa
     // cuando el dueño escanea un código que no existe y decide darlo de alta.
     async crearProducto(datos) {
+      const ubic = datos.ubicacionId && datos.ubicacionId !== "todas" ? db.get("ubicaciones").find({ id: datos.ubicacionId }).value() : null;
+      if (ubic && ubic.activa === false) return { error: `"${ubic.nombre}" está desactivada — reactívala en Avanzado antes de agregar productos ahí.` };
       const p = {
         id: randomUUID(),
         nombre: datos.nombre,
@@ -221,6 +270,8 @@ if (MODO_LOYVERSE) {
     async venderUno(id, cantidad) {
       const p = db.get("productos").find({ id }).value();
       if (!p) return { error: "Producto no encontrado." };
+      const ubic = db.get("ubicaciones").find({ id: p.ubicacionId }).value();
+      if (ubic && ubic.activa === false) return { error: `"${ubic.nombre}" está desactivada — no admite ventas nuevas.` };
       if (p.stockActual < cantidad) return { error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` };
 
       const ventaId = randomUUID();

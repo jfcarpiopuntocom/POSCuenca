@@ -19,15 +19,21 @@
   const ubicaciones = [
       {
           "id": "centro",
-          "nombre": "Local Centro Histórico"
+          "nombre": "Local Centro Histórico",
+          "activa": true,
+          "tipo": "propio"
       },
       {
           "id": "mercado",
-          "nombre": "Stand Mercado 10 de Agosto"
+          "nombre": "Stand Mercado 10 de Agosto",
+          "activa": true,
+          "tipo": "propio"
       },
       {
           "id": "feria",
-          "nombre": "Feria Artesanal El Otorongo"
+          "nombre": "Feria Artesanal El Otorongo",
+          "activa": true,
+          "tipo": "propio"
       }
   ];
 
@@ -108,8 +114,31 @@
       const body = opts && opts.body ? JSON.parse(opts.body) : {};
       const uid = q.get("ubicacionId");
 
+      let m;
       if (path === "/api/modo") return J({ modo: "demo-estatico" });
-      if (path === "/api/ubicaciones") return J(ubicaciones);
+      if (path === "/api/ubicaciones" && (!opts || opts.method !== "POST")) {
+        const soloActivas = q.get("todas") !== "1";
+        return J(soloActivas ? ubicaciones.filter((u) => u.activa !== false) : ubicaciones);
+      }
+      if (path === "/api/ubicaciones" && opts && opts.method === "POST") {
+        if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre de la ubicación es obligatorio." }, 400);
+        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true };
+        ubicaciones.push(nueva);
+        mov("ubicacion-alta", { ubicacion: nueva.nombre });
+        return J(nueva);
+      }
+      if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)$/)) && opts && opts.method === "PUT") {
+        const u = ubicaciones.find((x) => x.id === m[1]); if (!u) return J({ error: "Ubicación no encontrada." }, 404);
+        if (body.nombre && body.nombre.trim()) u.nombre = body.nombre.trim();
+        if (body.tipo) u.tipo = body.tipo;
+        return J(u);
+      }
+      if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)\/(activar|desactivar)$/))) {
+        const u = ubicaciones.find((x) => x.id === m[1]); if (!u) return J({ error: "Ubicación no encontrada." }, 404);
+        u.activa = m[2] === "activar";
+        mov(u.activa ? "ubicacion-reactivada" : "ubicacion-desactivada", { ubicacion: u.nombre });
+        return J(u);
+      }
 
       if (path === "/api/dashboard") {
         const ps = filtrar(uid), vh = ventasHoyDe(uid);
@@ -133,6 +162,8 @@
       if (path === "/api/productos" && opts && opts.method === "POST") {
         if (!body.nombre || !body.barcode) return J({ error: "Falta el nombre o el código de barras." }, 400);
         if (body.perecible && !body.fechaCaducidad) return J({ error: "Si el producto expira, indica su fecha de caducidad." }, 400);
+        const ubicNueva = body.ubicacionId && body.ubicacionId !== "todas" ? ubicaciones.find((x) => x.id === body.ubicacionId) : null;
+        if (ubicNueva && ubicNueva.activa === false) return J({ error: `"${ubicNueva.nombre}" está desactivada — reactívala en Avanzado antes de agregar productos ahí.` }, 400);
         const nuevo = {
           id: "p" + Math.random().toString(36).slice(2, 9), nombre: body.nombre, categoria: body.categoria || "General",
           sku: body.sku || body.barcode, barcode: body.barcode, ubicacionId: body.ubicacionId || "todas",
@@ -146,9 +177,10 @@
         return J(ficha(nuevo));
       }
 
-      let m;
       if ((m = path.match(/^\/api\/productos\/([^/]+)\/venta$/))) {
         const p = productos.find((x) => x.id === m[1]); if (!p) return J({ error: "Producto no encontrado." }, 404);
+        const ubicP = ubicaciones.find((x) => x.id === p.ubicacionId);
+        if (ubicP && ubicP.activa === false) return J({ error: `"${ubicP.nombre}" está desactivada — no admite ventas nuevas.` }, 400);
         const cant = Number.isInteger(body.cantidad) && body.cantidad > 0 ? body.cantidad : 1;
         if (p.stockActual < cant) return J({ error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` }, 400);
         p.stockActual -= cant;
