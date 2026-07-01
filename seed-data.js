@@ -14,8 +14,8 @@ const productos = [
   { id: "p02", nombre: "Canelazo Artesanal 750ml", categoria: "Licores", sku: "CAN-ART-750", barcode: "7861000010026", ubicacionId: "centro", precio: 12.0, costo: 6.5, stockActual: 8, umbralRojo: 10, umbralAmarillo: 18, proveedor: "Licores del Tomebamba" },
   { id: "p03", nombre: "Aguardiente Puntas Cuenca 1L", categoria: "Licores", sku: "AGU-PUN-1L", barcode: "7861000010033", ubicacionId: "mercado", precio: 6.0, costo: 3.2, stockActual: 30, umbralRojo: 12, umbralAmarillo: 24, proveedor: "Licores del Tomebamba" },
   { id: "p04", nombre: "Ron San Miguel Añejo 750ml", categoria: "Licores", sku: "RON-SM-750", barcode: "7861000010040", ubicacionId: "centro", precio: 14.5, costo: 9.8, stockActual: 16, umbralRojo: 6, umbralAmarillo: 12, proveedor: "Distribuidora Azuay" },
-  { id: "p05", nombre: "Vino Hervido Caliente 500ml", categoria: "Licores", sku: "VIN-HER-500", barcode: "7861000010057", ubicacionId: "feria", precio: 5.5, costo: 2.8, stockActual: 3, umbralRojo: 8, umbralAmarillo: 16, proveedor: "Licores del Tomebamba" },
-  { id: "p06", nombre: "Draque de Mora Artesanal 750ml", categoria: "Licores", sku: "DRA-MOR-750", barcode: "7861000010064", ubicacionId: "mercado", precio: 11.0, costo: 6.0, stockActual: 22, umbralRojo: 8, umbralAmarillo: 16, proveedor: "Licores del Tomebamba" },
+  { id: "p05", nombre: "Vino Hervido Caliente 500ml", categoria: "Licores", sku: "VIN-HER-500", barcode: "7861000010057", ubicacionId: "feria", precio: 5.5, costo: 2.8, stockActual: 3, umbralRojo: 8, umbralAmarillo: 16, proveedor: "Licores del Tomebamba", perecible: true, fechaCaducidad: "2026-07-05", metodoCosteo: "FIFO", lotes: [] },
+  { id: "p06", nombre: "Draque de Mora Artesanal 750ml", categoria: "Licores", sku: "DRA-MOR-750", barcode: "7861000010064", ubicacionId: "mercado", precio: 11.0, costo: 6.0, stockActual: 22, umbralRojo: 8, umbralAmarillo: 16, proveedor: "Licores del Tomebamba", perecible: true, fechaCaducidad: "2026-08-20", metodoCosteo: "FIFO", lotes: [] },
 
   // ---------- Artesanías ----------
   { id: "p07", nombre: "Sombrero de Paja Toquilla Fino", categoria: "Artesanías", sku: "SOM-PAJ-001", barcode: "7861000020017", ubicacionId: "centro", precio: 45.0, costo: 22.0, stockActual: 14, umbralRojo: 4, umbralAmarillo: 8, proveedor: "Tejedoras de Sígsig" },
@@ -26,7 +26,7 @@ const productos = [
   { id: "p12", nombre: "Olla de Barro Esmaltada", categoria: "Cerámica", sku: "CER-OLL-001", barcode: "7861000020062", ubicacionId: "mercado", precio: 15.0, costo: 7.0, stockActual: 20, umbralRojo: 6, umbralAmarillo: 12, proveedor: "Cerámica San Marcos" },
   { id: "p13", nombre: "Poncho de Lana Cañari", categoria: "Textiles", sku: "TEX-PON-001", barcode: "7861000020079", ubicacionId: "centro", precio: 55.0, costo: 28.0, stockActual: 6, umbralRojo: 3, umbralAmarillo: 6, proveedor: "Tejedoras de Sígsig" },
   { id: "p14", nombre: "Vela Aromática Artesanal", categoria: "Artesanías", sku: "VEL-ARO-001", barcode: "7861000020086", ubicacionId: "feria", precio: 6.5, costo: 2.5, stockActual: 35, umbralRojo: 10, umbralAmarillo: 20, proveedor: "Taller El Vergel" },
-  { id: "p15", nombre: "Mermelada Artesanal de Mora 250g", categoria: "Gourmet", sku: "GOU-MER-250", barcode: "7861000020093", ubicacionId: "mercado", precio: 4.0, costo: 1.6, stockActual: 28, umbralRojo: 10, umbralAmarillo: 18, proveedor: "Productos del Valle" },
+  { id: "p15", nombre: "Mermelada Artesanal de Mora 250g", categoria: "Gourmet", sku: "GOU-MER-250", barcode: "7861000020093", ubicacionId: "mercado", precio: 4.0, costo: 1.6, stockActual: 28, umbralRojo: 10, umbralAmarillo: 18, proveedor: "Productos del Valle", perecible: true, fechaCaducidad: "2026-10-01", metodoCosteo: "FIFO", lotes: [] },
 ];
 
 const configuracion = { gastosMensuales: { centro: 0, mercado: 0, feria: 0 } };

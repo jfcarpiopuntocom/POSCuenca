@@ -28,8 +28,8 @@
     {"id":"p02","nombre":"Canelazo Artesanal 750ml","categoria":"Licores","sku":"CAN-ART-750","barcode":"7861000010026","ubicacionId":"centro","precio":12,"costo":6.5,"stockActual":8,"umbralRojo":10,"umbralAmarillo":18,"proveedor":"Licores del Tomebamba"},
     {"id":"p03","nombre":"Aguardiente Puntas Cuenca 1L","categoria":"Licores","sku":"AGU-PUN-1L","barcode":"7861000010033","ubicacionId":"mercado","precio":6,"costo":3.2,"stockActual":30,"umbralRojo":12,"umbralAmarillo":24,"proveedor":"Licores del Tomebamba"},
     {"id":"p04","nombre":"Ron San Miguel Añejo 750ml","categoria":"Licores","sku":"RON-SM-750","barcode":"7861000010040","ubicacionId":"centro","precio":14.5,"costo":9.8,"stockActual":16,"umbralRojo":6,"umbralAmarillo":12,"proveedor":"Distribuidora Azuay"},
-    {"id":"p05","nombre":"Vino Hervido Caliente 500ml","categoria":"Licores","sku":"VIN-HER-500","barcode":"7861000010057","ubicacionId":"feria","precio":5.5,"costo":2.8,"stockActual":3,"umbralRojo":8,"umbralAmarillo":16,"proveedor":"Licores del Tomebamba"},
-    {"id":"p06","nombre":"Draque de Mora Artesanal 750ml","categoria":"Licores","sku":"DRA-MOR-750","barcode":"7861000010064","ubicacionId":"mercado","precio":11,"costo":6,"stockActual":22,"umbralRojo":8,"umbralAmarillo":16,"proveedor":"Licores del Tomebamba"},
+    {"id":"p05","nombre":"Vino Hervido Caliente 500ml","categoria":"Licores","sku":"VIN-HER-500","barcode":"7861000010057","ubicacionId":"feria","precio":5.5,"costo":2.8,"stockActual":3,"umbralRojo":8,"umbralAmarillo":16,"proveedor":"Licores del Tomebamba","perecible":true,"fechaCaducidad":"2026-07-05","metodoCosteo":"FIFO","lotes":[]},
+    {"id":"p06","nombre":"Draque de Mora Artesanal 750ml","categoria":"Licores","sku":"DRA-MOR-750","barcode":"7861000010064","ubicacionId":"mercado","precio":11,"costo":6,"stockActual":22,"umbralRojo":8,"umbralAmarillo":16,"proveedor":"Licores del Tomebamba","perecible":true,"fechaCaducidad":"2026-08-20","metodoCosteo":"FIFO","lotes":[]},
     {"id":"p07","nombre":"Sombrero de Paja Toquilla Fino","categoria":"Artesanías","sku":"SOM-PAJ-001","barcode":"7861000020017","ubicacionId":"centro","precio":45,"costo":22,"stockActual":14,"umbralRojo":4,"umbralAmarillo":8,"proveedor":"Tejedoras de Sígsig"},
     {"id":"p08","nombre":"Macana de Ikat Gualaceo","categoria":"Artesanías","sku":"MAC-IKA-001","barcode":"7861000020024","ubicacionId":"feria","precio":38,"costo":18,"stockActual":9,"umbralRojo":4,"umbralAmarillo":8,"proveedor":"Taller Gualaceo"},
     {"id":"p09","nombre":"Aretes de Filigrana de Plata","categoria":"Joyería","sku":"JOY-FIL-001","barcode":"7861000020031","ubicacionId":"centro","precio":32,"costo":14,"stockActual":18,"umbralRojo":5,"umbralAmarillo":10,"proveedor":"Orfebres Chordeleg"},
@@ -38,7 +38,7 @@
     {"id":"p12","nombre":"Olla de Barro Esmaltada","categoria":"Cerámica","sku":"CER-OLL-001","barcode":"7861000020062","ubicacionId":"mercado","precio":15,"costo":7,"stockActual":20,"umbralRojo":6,"umbralAmarillo":12,"proveedor":"Cerámica San Marcos"},
     {"id":"p13","nombre":"Poncho de Lana Cañari","categoria":"Textiles","sku":"TEX-PON-001","barcode":"7861000020079","ubicacionId":"centro","precio":55,"costo":28,"stockActual":6,"umbralRojo":3,"umbralAmarillo":6,"proveedor":"Tejedoras de Sígsig"},
     {"id":"p14","nombre":"Vela Aromática Artesanal","categoria":"Artesanías","sku":"VEL-ARO-001","barcode":"7861000020086","ubicacionId":"feria","precio":6.5,"costo":2.5,"stockActual":35,"umbralRojo":10,"umbralAmarillo":20,"proveedor":"Taller El Vergel"},
-    {"id":"p15","nombre":"Mermelada Artesanal de Mora 250g","categoria":"Gourmet","sku":"GOU-MER-250","barcode":"7861000020093","ubicacionId":"mercado","precio":4,"costo":1.6,"stockActual":28,"umbralRojo":10,"umbralAmarillo":18,"proveedor":"Productos del Valle"}
+    {"id":"p15","nombre":"Mermelada Artesanal de Mora 250g","categoria":"Gourmet","sku":"GOU-MER-250","barcode":"7861000020093","ubicacionId":"mercado","precio":4,"costo":1.6,"stockActual":28,"umbralRojo":10,"umbralAmarillo":18,"proveedor":"Productos del Valle","perecible":true,"fechaCaducidad":"2026-10-01","metodoCosteo":"FIFO","lotes":[]}
   ];
 
   const ventas = [];
@@ -47,15 +47,37 @@
   const ORDEN = { rojo: 0, amarillo: 1, azul: 2, verde: 3 };
 
   function nombreUbic(id) { const u = ubicaciones.find((x) => x.id === id); return u ? u.nombre : "Ubicación desconocida"; }
+  // Días para vencer (negativo = ya venció). Espejo de diasParaVencer() en server.js.
+  function diasParaVencer(fecha) {
+    if (!fecha) return null;
+    const hoy = new Date(hoyISO() + "T00:00:00");
+    const venc = new Date(fecha + "T00:00:00");
+    return Math.round((venc - hoy) / 86400000);
+  }
+  // Espejo de calcularEstado() en server.js: combina stock + vencimiento,
+  // se queda con la señal más grave de las dos.
   function estadoDe(p) {
     const margen = p.precio > 0 ? (p.precio - p.costo) / p.precio : 0;
-    if (p.stockActual <= 0) return { estado: "rojo", mensaje: "Sin stock — repón cuanto antes" };
-    if (p.stockActual <= p.umbralRojo) return { estado: "rojo", mensaje: `Quedan ${p.stockActual} — reponer urgente` };
-    if (p.stockActual <= p.umbralAmarillo) return { estado: "amarillo", mensaje: `Quedan ${p.stockActual} — revisar pronto` };
-    if (margen >= 0.5) return { estado: "azul", mensaje: "Buen margen — impúlsalo esta semana" };
-    return { estado: "verde", mensaje: "Stock saludable" };
+    const dias = p.perecible ? diasParaVencer(p.fechaCaducidad) : null;
+    let porStock;
+    if (p.stockActual <= 0) porStock = { estado: "rojo", mensaje: "Sin stock — repón cuanto antes" };
+    else if (p.stockActual <= p.umbralRojo) porStock = { estado: "rojo", mensaje: `Quedan ${p.stockActual} — reponer urgente` };
+    else if (p.stockActual <= p.umbralAmarillo) porStock = { estado: "amarillo", mensaje: `Quedan ${p.stockActual} — revisar pronto` };
+    else if (margen >= 0.5) porStock = { estado: "azul", mensaje: "Buen margen — impúlsalo esta semana" };
+    else porStock = { estado: "verde", mensaje: "Stock saludable" };
+    if (dias == null) return { ...porStock, dias };
+    let porVenc = null;
+    if (dias < 0) porVenc = { estado: "rojo", mensaje: `Venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? "" : "s"} — retíralo` };
+    else if (dias <= 3) porVenc = { estado: "rojo", mensaje: `Vence en ${dias} día${dias === 1 ? "" : "s"} — véndelo ya` };
+    else if (dias <= 7) porVenc = { estado: "amarillo", mensaje: `Vence en ${dias} días — véndelo primero` };
+    if (!porVenc) return { ...porStock, dias };
+    const masGrave = ORDEN[porVenc.estado] <= ORDEN[porStock.estado] ? porVenc : porStock;
+    return { ...masGrave, dias };
   }
-  function ficha(p) { const e = estadoDe(p); return { id: p.id, nombre: p.nombre, precio: p.precio, sku: p.sku, barcode: p.barcode, proveedor: p.proveedor, stockActual: p.stockActual, estado: e.estado, mensaje: e.mensaje, categoria: p.categoria, ubicacionId: p.ubicacionId, ubicacionNombre: nombreUbic(p.ubicacionId) }; }
+  function ficha(p) {
+    const e = estadoDe(p);
+    return { id: p.id, nombre: p.nombre, precio: p.precio, sku: p.sku, barcode: p.barcode, proveedor: p.proveedor, stockActual: p.stockActual, estado: e.estado, mensaje: e.mensaje, categoria: p.categoria, ubicacionId: p.ubicacionId, ubicacionNombre: nombreUbic(p.ubicacionId), perecible: !!p.perecible, fechaCaducidad: p.fechaCaducidad || null, diasParaVencer: e.dias, metodoCosteo: p.metodoCosteo || "FIFO" };
+  }
   function filtrar(uid) { return !uid || uid === "todas" ? productos : productos.filter((p) => p.ubicacionId === uid); }
   function ventasHoyDe(uid) { return ventas.filter((v) => (!uid || uid === "todas" || v.ubicacionId === uid)); }
   function mov(tipo, detalle) { movimientos.push({ id: String(Date.now() + Math.random()), tipo, detalle, fecha: new Date().toISOString() }); }
@@ -92,12 +114,28 @@
         return J({ semaforoGeneral: sem, resumenDia: { entra: +entra.toFixed(2), sale: +sale.toFixed(2), gananciaHoy: +(entra - sale).toFixed(2), inventarioValorizado: +inv.toFixed(2), ventasCount: vh.length }, alertas });
       }
 
-      if (path === "/api/productos") {
-        let lista = filtrar(uid).map((p) => { const e = estadoDe(p); return { id: p.id, nombre: p.nombre, categoria: p.categoria, sku: p.sku, stockActual: p.stockActual, estado: e.estado, mensaje: e.mensaje, precio: p.precio }; });
+      if (path === "/api/productos" && (!opts || opts.method !== "POST")) {
+        let lista = filtrar(uid).map((p) => { const e = estadoDe(p); return { id: p.id, nombre: p.nombre, categoria: p.categoria, sku: p.sku, stockActual: p.stockActual, estado: e.estado, mensaje: e.mensaje, precio: p.precio, perecible: !!p.perecible, fechaCaducidad: p.fechaCaducidad || null, diasParaVencer: e.dias }; });
         const est = q.get("estado");
         if (est) lista = lista.filter((x) => x.estado === est);
         lista.sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado] || a.nombre.localeCompare(b.nombre, "es"));
         return J(lista);
+      }
+
+      if (path === "/api/productos" && opts && opts.method === "POST") {
+        if (!body.nombre || !body.barcode) return J({ error: "Falta el nombre o el código de barras." }, 400);
+        if (body.perecible && !body.fechaCaducidad) return J({ error: "Si el producto expira, indica su fecha de caducidad." }, 400);
+        const nuevo = {
+          id: "p" + Math.random().toString(36).slice(2, 9), nombre: body.nombre, categoria: body.categoria || "General",
+          sku: body.sku || body.barcode, barcode: body.barcode, ubicacionId: body.ubicacionId || "todas",
+          precio: Number(body.precio) || 0, costo: Number(body.costo) || 0, stockActual: Number(body.stockInicial) || 0,
+          umbralRojo: Number(body.umbralRojo) || 5, umbralAmarillo: Number(body.umbralAmarillo) || 10, proveedor: body.proveedor || "",
+          perecible: !!body.perecible, fechaCaducidad: body.perecible ? (body.fechaCaducidad || null) : null,
+          metodoCosteo: body.metodoCosteo === "LIFO" ? "LIFO" : "FIFO",
+        };
+        productos.push(nuevo);
+        mov("alta", { producto: nuevo.nombre, sku: nuevo.sku, ubicacion: nombreUbic(nuevo.ubicacionId) });
+        return J(ficha(nuevo));
       }
 
       let m;
@@ -120,7 +158,11 @@
       }
       if ((m = path.match(/^\/api\/productos\/([^/]+)\/etiqueta$/))) {
         const p = productos.find((x) => x.id === m[1]); if (!p) return J({ error: "Producto no encontrado." }, 404);
-        return J({ producto: ficha(p), qrDataUrl: qrDataUrl(JSON.stringify({ id: p.id, sku: p.sku, barcode: p.barcode })) });
+        // Barcode: generado local con window.OCBarcode (barcode128.js), cero llamadas
+        // externas. QR: sigue usando la API pública qrserver.com solo en esta demo
+        // estática (el backend real lo genera 100% local con la librería "qrcode").
+        const barcodeSvg = window.OCBarcode ? window.OCBarcode.code128SVG(p.barcode, { width: 300, height: 80 }) : "";
+        return J({ producto: ficha(p), qrDataUrl: qrDataUrl(JSON.stringify({ id: p.id, sku: p.sku, barcode: p.barcode })), barcodeSvg });
       }
       if ((m = path.match(/^\/api\/productos\/([^/]+)$/))) {
         const p = productos.find((x) => x.id === m[1]); if (!p) return J({ error: "Producto no encontrado." }, 404);
@@ -143,7 +185,10 @@
       }
       if (path === "/api/configuracion/gastos") {
         const { ubicacionId, gastosMensuales: g } = body; const monto = Number(g);
-        if (!ubicacionId || ubicacionId === "todas") return J({ error: "Elige una ubicación específica para guardar sus gastos mensuales." }, 400);
+        // "todas" es válido: ubicaciones está DORMANT en Olimpo (selector oculto,
+        // siempre vale "todas"), así que el negocio opera como una sola tienda
+        // virtual bajo esa clave. Ver la misma nota en server.js.
+        if (!ubicacionId) return J({ error: "Falta la ubicación." }, 400);
         if (!isFinite(monto) || monto < 0) return J({ error: "El monto debe ser un número igual o mayor a 0." }, 400);
         gastosMensuales[ubicacionId] = +monto.toFixed(2);
         return J({ ubicacionId, gastosMensuales: gastosMensuales[ubicacionId] });
