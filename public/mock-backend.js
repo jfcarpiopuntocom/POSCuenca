@@ -240,7 +240,7 @@
       }
 
       if (path === "/api/productos" && (!opts || opts.method !== "POST")) {
-        let lista = filtrar(uid).map((p) => { const e = estadoDe(p); return { id: p.id, nombre: p.nombre, categoria: p.categoria, sku: p.sku, stockActual: p.stockActual, estado: e.estado, mensaje: e.mensaje, precio: p.precio, perecible: !!p.perecible, fechaCaducidad: p.fechaCaducidad || null, diasParaVencer: e.dias }; });
+        let lista = filtrar(uid).map((p) => { const e = estadoDe(p); return { id: p.id, nombre: p.nombre, categoria: p.categoria, sku: p.sku, stockActual: p.stockActual, estado: e.estado, mensaje: e.mensaje, precio: p.precio, perecible: !!p.perecible, fechaCaducidad: p.fechaCaducidad || null, diasParaVencer: e.dias, estrella: !!p.estrella }; });
         const est = q.get("estado");
         if (est) lista = lista.filter((x) => x.estado === est);
         lista.sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado] || a.nombre.localeCompare(b.nombre, "es"));
@@ -321,6 +321,14 @@
       }
 
       if (path === "/api/actividad") return J(movimientos.slice().reverse().slice(0, 100));
+
+      // Estrella: dueño marca/desmarca productos para que el empleado promueva
+      if ((m = path.match(/^\/api\/productos\/([^/]+)\/estrella$/))) {
+        const p = productos.find((x) => x.id === m[1]); if (!p) return J({ error: "Producto no encontrado." }, 404);
+        p.estrella = !p.estrella;
+        mov("estrella", { producto: p.nombre, accion: p.estrella ? "marcado" : "desmarcado" });
+        return J({ estrella: p.estrella });
+      }
 
       if (path === "/api/respaldo/exportar") {
         return J({ modo: "demo-estatico", ubicaciones, productos, ventas, movimientos, configuracion: { gastosMensuales } });

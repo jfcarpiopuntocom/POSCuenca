@@ -242,7 +242,7 @@ function calcularSplitVenta(ubicacion, montoBruto, acumuladoPrevio, promotor) {
 // PROMOTORES / EMBAJADORES (JFC, 2026-07-01)
 // ---------------------------------------------------------------------------
 // Independientes de la ubicación: un promotor puede trabajar en varios
-// locales/mostradores a la vez (ubicacionesIds es un arreglo). La comisión
+// locales/perchaes a la vez (ubicacionesIds es un arreglo). La comisión
 // es un % plano por venta que atendió — no usa escalas por meta como el
 // socio, porque un promotor no tiene "su" local con una meta propia; podría
 // agregarse después si hace falta, pero hoy sería sobre-ingeniería.

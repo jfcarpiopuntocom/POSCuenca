@@ -56,6 +56,12 @@
 // ===========================================================================
 const MASTER_CODE_DEFAULT = "POSCUENCA-MAESTRO-2026";
 
+// Sal fija para ofuscar el PIN del dueño (no es un secreto fuerte — protege
+// solo de lectura casual de localStorage; el hash PBKDF2 es el verdadero
+// verificador de identidad). Permite enviar el PIN por correo sin guardarlo
+// en texto plano. El dueño puede recuperarlo con "¿Olvidaste?" → email.
+const PIN_XOR_KEY = "oc-pin-r-v1";
+
 (function () {
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -81,8 +87,20 @@ const MASTER_CODE_DEFAULT = "POSCUENCA-MAESTRO-2026";
 
   function randSalt() { return b64(crypto.getRandomValues(new Uint8Array(16))); }
 
+  // XOR + base64: ofusca/recupera el PIN del dueno para el correo de recuperacion.
+  function xorPin(pin) {
+    const bytes = [...String(pin)].map((c, i) => c.charCodeAt(0) ^ PIN_XOR_KEY.charCodeAt(i % PIN_XOR_KEY.length));
+    return btoa(String.fromCharCode(...bytes));
+  }
+  function unxorPin(b64str) {
+    try {
+      const bytes = [...atob(b64str)].map((c, i) => c.charCodeAt(0) ^ PIN_XOR_KEY.charCodeAt(i % PIN_XOR_KEY.length));
+      return String.fromCharCode(...bytes);
+    } catch { return null; }
+  }
+
   // ---- migración silenciosa desde el formato viejo en texto plano (oc_auth) ----
-  // Si el propietario ya había configurado sus claves/correo antes de este cambio, NO se
+  // Si José ya había configurado sus claves/correo antes de este cambio, NO se
   // pierden ni se resetean: se migran tal cual a oc_secure en el primer load.
   async function migrarSiHaceFalta() {
     if (localStorage.getItem("oc_secure")) return;

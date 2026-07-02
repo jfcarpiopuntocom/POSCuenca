@@ -6,7 +6,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Source+Sans+3:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Source+Sans+3:wght@400;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     /* --- superficies y tinta (reasignadas, mismos nombres usados por el script) --- */
@@ -36,7 +36,7 @@
     --font-display:"Space Grotesk", "Avenir Next Condensed", sans-serif;
     --font-body:"Source Sans 3", "Segoe UI", sans-serif;
     --font-mono:"JetBrains Mono", monospace;
-    --font-serif:"Instrument Serif", "Iowan Old Style", serif;
+    --font-serif:"Space Grotesk", "Avenir Next Condensed", sans-serif;
     --nav-h:78px;
     --sidebar-w:248px;
     --header-h:104px;
@@ -368,16 +368,40 @@
     grid-template-columns:repeat(auto-fill,minmax(190px,1fr));
     gap:14px;
   }
+  /* ============ TARJETAS INVENTARIO — SIMON-STYLE ============ */
+  /* Colores vivos + esquinas redondeadas + hover. Portado de OC. */
   .caja{
     padding:16px;
-    border:2px solid transparent;
+    border:3px solid transparent;
     cursor:pointer;
     min-height:44px;
+    border-radius:12px;
+    position:relative;
+    transition:transform 0.15s ease, box-shadow 0.15s ease;
   }
-  .caja.verde{background:var(--verde-claro); border-color:var(--verde);}
-  .caja.amarillo{background:var(--amarillo-claro); border-color:var(--amarillo);}
-  .caja.rojo{background:var(--rojo-claro); border-color:var(--rojo);}
-  .caja.azul{background:var(--azul-op-claro); border-color:var(--azul-op);}
+  .caja:hover{transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,0.18);}
+  .caja:active{transform:translateY(0); box-shadow:none;}
+  .caja.verde{background:#1DB954; border-color:#17a347;}
+  .caja.amarillo{background:#FFB300; border-color:#E6A100;}
+  .caja.rojo{background:#E53935; border-color:#C62828;}
+  .caja.azul{background:#2196F3; border-color:#1976D2;}
+  /* Fondos oscuros (verde/rojo/azul): texto blanco */
+  .caja.verde .nombre, .caja.rojo .nombre, .caja.azul .nombre{color:#FFFFFF !important;}
+  .caja.verde .detalle, .caja.rojo .detalle, .caja.azul .detalle{color:#E0E0E0 !important;}
+  .caja.verde .stock, .caja.rojo .stock, .caja.azul .stock{color:#FFFFFF !important;}
+  .caja.verde [data-ajuste-menos], .caja.rojo [data-ajuste-menos], .caja.azul [data-ajuste-menos],
+  .caja.verde [data-ajuste-mas], .caja.rojo [data-ajuste-mas], .caja.azul [data-ajuste-mas],
+  .caja.verde [data-estrella-toggle], .caja.rojo [data-estrella-toggle], .caja.azul [data-estrella-toggle]
+  {color:#FFFFFF !important; border-color:#FFFFFF !important;}
+  /* Fondo amarillo (claro): tinta oscura */
+  .caja.amarillo .nombre{color:#1e1a12 !important;}
+  .caja.amarillo .detalle{color:#5d5340 !important;}
+  .caja.amarillo .stock{color:#1e1a12 !important;}
+  .caja .estrella-badge{
+    position:absolute; top:8px; right:8px;
+    font-size:20px; line-height:1;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+  }
   .caja .nombre{
     font-family:var(--font-display);
     font-size:16px;
@@ -392,13 +416,9 @@
   .caja .stock{
     font-family:var(--font-serif);
     font-size:34px;
-    font-weight:400;
+    font-weight:700;
     margin-top:4px;
   }
-  .caja.verde .stock{color:var(--verde);}
-  .caja.amarillo .stock{color:var(--amarillo);}
-  .caja.rojo .stock{color:var(--rojo);}
-  .caja.azul .stock{color:var(--azul-op);}
 
   .filtros-estado{
     display:flex;
@@ -427,10 +447,10 @@
     transform:translateY(-50%);
     background:var(--ink-soft);
   }
-  .filtros-estado button[data-estado="rojo"]::before{background:var(--rojo);}
-  .filtros-estado button[data-estado="amarillo"]::before{background:var(--amarillo);}
-  .filtros-estado button[data-estado="verde"]::before{background:var(--verde);}
-  .filtros-estado button[data-estado="azul"]::before{background:var(--azul-op);}
+  .filtros-estado button[data-estado="rojo"]::before{background:#E53935;}
+  .filtros-estado button[data-estado="amarillo"]::before{background:#FFB300;}
+  .filtros-estado button[data-estado="verde"]::before{background:#1DB954;}
+  .filtros-estado button[data-estado="azul"]::before{background:#2196F3;}
   .filtros-estado button[data-estado=""]{padding-left:14px;}
   .filtros-estado button.activo{
     background:var(--azul-medio);
@@ -825,19 +845,20 @@
     </div>
 
     <div class="grid-resumen">
-      <div class="tarjeta tag-card">
+      <!-- Plata del negocio (entra/sale/ganancia/inventario): SOLO dueño. Gated en cargarHoy() via clase fin-dueno. -->
+      <div class="tarjeta tag-card fin-dueno">
         <div class="etiqueta">Entró hoy</div>
         <div class="valor" id="resEntra">$0.00</div>
       </div>
-      <div class="tarjeta tag-card">
+      <div class="tarjeta tag-card fin-dueno">
         <div class="etiqueta">Salió hoy</div>
         <div class="valor" id="resSale">$0.00</div>
       </div>
-      <div class="tarjeta tag-card">
+      <div class="tarjeta tag-card fin-dueno">
         <div class="etiqueta">Ganancia de hoy</div>
         <div class="valor" id="resGanancia">$0.00</div>
       </div>
-      <div class="tarjeta tag-card">
+      <div class="tarjeta tag-card fin-dueno">
         <div class="etiqueta">Tu inventario vale</div>
         <div class="valor" id="resInventario">$0.00</div>
       </div>
@@ -870,6 +891,11 @@
       <button data-estado="azul">Oportunidad</button>
     </div>
     <div class="grid-cajas" id="gridInventario"></div>
+    <!-- Log de movimientos: SOLO dueño, anti-descuadre -->
+    <div id="seccionLogAjustes" style="display:none;">
+      <h3 class="seccion" style="margin-top:24px;">Últimos movimientos</h3>
+      <div id="logAjustes" style="max-height:300px;overflow-y:auto;"></div>
+    </div>
   </section>
 
   <!-- VISTA: ESCANEAR -->
@@ -1027,8 +1053,13 @@ async function cargarHoy(){
     rojo: "Atención: hay alertas urgentes hoy."
   };
   document.getElementById("heroTitulo").textContent = titulos[data.semaforoGeneral] || "Tu negocio hoy";
-  document.getElementById("heroSubtitulo").textContent =
-    `Ganaste ${fmtMoney(data.resumenDia.gananciaHoy)} hoy, con ${data.resumenDia.ventasCount} ventas registradas.`;
+  // Plata del negocio (ganancia/entra/sale/inventario): SOLO dueño. El titular
+  // tampoco le revela la ganancia al empleado — solo el conteo de ventas.
+  const esDuenoHoy = window.OCAuth && window.OCAuth.rolActual() === "dueno";
+  document.getElementById("heroSubtitulo").textContent = esDuenoHoy
+    ? `Ganaste ${fmtMoney(data.resumenDia.gananciaHoy)} hoy, con ${data.resumenDia.ventasCount} ventas registradas.`
+    : `${data.resumenDia.ventasCount} ventas registradas hoy.`;
+  document.querySelectorAll(".fin-dueno").forEach(el => el.style.display = esDuenoHoy ? "" : "none");
 
   document.getElementById("resEntra").textContent = fmtMoney(data.resumenDia.entra);
   document.getElementById("resSale").textContent = fmtMoney(data.resumenDia.sale);
@@ -1071,14 +1102,83 @@ async function cargarInventario(){
     grid.innerHTML = `<p>No hay productos en este filtro.</p>`;
     return;
   }
+  const esDuenoInv = window.OCAuth && window.OCAuth.rolActual() === "dueno";
   grid.innerHTML = productos.map(p => `
-    <div class="caja tag-card ${p.estado}" onclick="abrirFichaDesdeInventario('${p.id}')">
-      <div class="nombre">${p.nombre}${p.perecible ? ' 🕓' : ''}</div>
-      <div class="detalle">${p.categoria} · ${p.sku}</div>
-      <div class="stock">${p.stockActual}</div>
-      <div class="detalle">${p.mensaje}</div>
+    <div class="caja tag-card ${p.estado}">
+      ${p.estrella ? '<span class="estrella-badge">⭐</span>' : ''}
+      <div onclick="abrirFichaDesdeInventario('${p.id}')" style="cursor:pointer;">
+        <div class="nombre">${p.nombre}${p.perecible ? ' 🕓' : ''}</div>
+        <div class="detalle">${p.categoria} · ${p.sku}</div>
+        <div class="stock">${p.stockActual}</div>
+        <div class="detalle">${p.mensaje}</div>
+      </div>
+      <!-- Ajuste rápido de stock sin escanear -->
+      <div class="ajuste-rapido" onclick="event.stopPropagation()" style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button data-ajuste-menos="${p.id}" title="Quitar 1" style="width:36px;height:36px;border-radius:50%;border:2px solid currentColor;background:transparent;color:inherit;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;">−</button>
+        <button data-ajuste-mas="${p.id}" title="Agregar 1" style="width:36px;height:36px;border-radius:50%;border:2px solid currentColor;background:transparent;color:inherit;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
+        ${esDuenoInv ? `<button data-estrella-toggle="${p.id}" title="${p.estrella ? 'Quitar estrella' : 'Marcar para promover'}" style="width:36px;height:36px;border-radius:50%;border:2px solid currentColor;background:transparent;color:inherit;font-size:16px;cursor:pointer;">${p.estrella ? '★' : '☆'}</button>` : ''}
+      </div>
     </div>
   `).join("");
+
+  // Ajuste rápido +/- stock sin escanear. Pide motivo, deja log para el dueño.
+  grid.querySelectorAll("[data-ajuste-menos],[data-ajuste-mas]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const esMenos = btn.hasAttribute("data-ajuste-menos");
+      const id = esMenos ? btn.dataset.ajusteMenos : btn.dataset.ajusteMas;
+      const delta = esMenos ? -1 : 1;
+      const motivo = (prompt(delta > 0 ? "Motivo del ingreso (+1):" : "Motivo del retiro (−1):") || "").trim();
+      if (!motivo) return;
+      const res = await fetch(`${API}/productos/${id}/ajustar`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ delta, motivo })
+      });
+      const r = await res.json();
+      if (!res.ok){ alert(r.error); return; }
+      cargarInventario();
+    });
+  });
+
+  // Estrella: dueño marca/desmarca productos para que el empleado los promueva
+  grid.querySelectorAll("[data-estrella-toggle]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.estrellaToggle;
+      const res = await fetch(`${API}/productos/${id}/estrella`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"
+      });
+      const r = await res.json();
+      if (!res.ok){ alert(r.error); return; }
+      cargarInventario();
+    });
+  });
+
+  // Log de movimientos recientes: SOLO dueño — anti-descuadre de stock
+  const secLog = document.getElementById("seccionLogAjustes");
+  if (secLog) {
+    secLog.style.display = esDuenoInv ? "" : "none";
+    if (esDuenoInv) cargarLogAjustes();
+  }
+}
+
+// Escapa HTML — el log muestra "motivo" tecleado por el empleado (via prompt),
+// nunca debe insertarse crudo en innerHTML (riesgo de XSS almacenado).
+function escHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Log de movimientos recientes — el dueño vigila ajustes del empleado
+async function cargarLogAjustes(){
+  const res = await fetch(API + '/actividad');
+  const movs = await res.json();
+  const cont = document.getElementById('logAjustes');
+  if (!movs.length){ cont.innerHTML = '<p style="color:var(--ink-soft);">Sin movimientos registrados.</p>'; return; }
+  cont.innerHTML = movs.slice(0, 20).map(m => {
+    const fecha = new Date(m.fecha).toLocaleString('es-EC', { timeZone:'America/Guayaquil', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+    const icono = m.tipo === 'ajuste' ? '📦' : m.tipo === 'venta' ? '💰' : m.tipo === 'estrella' ? '⭐' : m.tipo === 'anulacion' ? '🔄' : m.tipo === 'alta' ? '🆕' : '📋';
+    const detalle = escHtml((m.detalle && m.detalle.producto) || '');
+    const extra = m.tipo === 'ajuste' ? ` (${m.detalle.delta > 0 ? '+' : ''}${m.detalle.delta}) — ${escHtml(m.detalle.motivo)}` : m.tipo === 'venta' ? ` × ${m.detalle.cantidad} = $${m.detalle.total}` : m.tipo === 'estrella' ? ` ${escHtml(m.detalle.accion)}` : '';
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--linea,#e0d6c0);font-size:13px;color:var(--ink);"><span>${icono}</span> <strong>${detalle}</strong>${extra} <span style="color:var(--ink-soft);margin-left:8px;">${fecha}</span></div>`;
+  }).join('');
 }
 
 async function abrirFichaDesdeInventario(id){
