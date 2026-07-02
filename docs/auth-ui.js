@@ -51,6 +51,11 @@
   }
 
   let rol = null; // "dueno" | "empleado"
+  // Rol DEMO oculto (JFC, 2026-07-02): la clave 456 entra con acceso de dueño
+  // pero SIN poder cambiar claves ni correo. Para que un cliente pruebe todo
+  // sin bloquear al dueño ni secuestrar la recuperación. NO se anuncia en la UI.
+  const DEMO_PIN = "456";
+  let demoSesion = false;
   let listo = window.OCSecure.migrarSiHaceFalta(); // promesa: migra oc_auth viejo (si existe) sin perder lo que el propietario ya configuró
 
   // ---------------------------------------------------------------------------
@@ -121,6 +126,9 @@
     color:var(--blanco-calido,#fbf5e8);cursor:pointer;min-height:44px;}
   .oc-subgate{position:fixed;inset:0;z-index:9999;background:rgba(28,48,73,0.92);
     display:flex;align-items:center;justify-content:center;padding:20px;}
+  /* Rol DEMO: ocultar cambio de claves y de correo (todo lo demás funciona) */
+  body.rol-demo #oc-clave-block, body.rol-demo #oc-email-edit,
+  body.rol-demo #oc-email-save, body.rol-demo #oc-email-in{display:none!important;}
   `;
   document.head.appendChild(css);
 
@@ -232,20 +240,24 @@
     await listo;
     if (await window.OCSecure.verificarOwner(code)) { registrarExito(); return entrar("dueno"); }
     if (await window.OCSecure.verificarEmpleado(code)) { registrarExito(); return entrar("empleado"); }
+    if (code === DEMO_PIN) { registrarExito(); return entrar("demo"); }
     registrarFallo();
     const restante = msRestantesBloqueo();
     if (restante > 0) { error(`Demasiados intentos. Espera ${Math.ceil(restante / 1000)}s.`); return; }
     error("Clave incorrecta. Intenta de nuevo.");
   }
   function entrar(nuevoRol) {
-    rol = nuevoRol;
+    const esDemo = nuevoRol === "demo";
+    demoSesion = esDemo;
+    rol = esDemo ? "dueno" : nuevoRol; // el demo navega con acceso de dueño
     document.body.classList.toggle("rol-empleado", rol === "empleado");
     document.body.classList.toggle("rol-dueno", rol === "dueno");
+    document.body.classList.toggle("rol-demo", esDemo);
     gate.style.display = "none";
     montarLogout();
     reiniciarInactividad();
     if (rol === "empleado") { const n = document.querySelector('nav button[data-vista="hoy"]'); if (n) n.click(); }
-    window.dispatchEvent(new CustomEvent("oc-login", { detail: { rol } }));
+    window.dispatchEvent(new CustomEvent("oc-login", { detail: { rol, demo: esDemo } }));
   }
 
   // ---------------------------------------------------------------------------
@@ -273,7 +285,8 @@
   function cerrarSesion(mensaje) {
     clearTimeout(temporizadorInactividad);
     rol = null;
-    document.body.classList.remove("rol-empleado", "rol-dueno");
+    demoSesion = false;
+    document.body.classList.remove("rol-empleado", "rol-dueno", "rol-demo");
     nuevoTeclado();
     gate.style.display = "flex";
     $("oc-msg").style.color = mensaje ? "var(--rojo,#a3392a)" : "";
@@ -348,6 +361,7 @@
   // Expuesto para la vista Avanzado (capa contable).
   window.OCAuth = {
     rolActual: () => rol,
+    esDemo: () => demoSesion,
     enmascarar,
     listo: () => listo,
     abrirFlujoReset,

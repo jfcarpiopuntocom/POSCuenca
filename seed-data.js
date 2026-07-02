@@ -60,7 +60,7 @@ const configuracion = { gastosMensuales: { centro: 0, mercado: 0, feria: 0 } };
 // Promotores/embajadores (JFC, 2026-07-01): personas independientes de la
 // ubicación (no son "el socio del local", son alguien que trae clientela y
 // gana comisión por venta atendida). Un promotor puede trabajar en varios
-// locales/perchaes a la vez — por eso ubicacionesIds es un arreglo, no un
+// locales/perchas a la vez — por eso ubicacionesIds es un arreglo, no un
 // solo id. La comisión del promotor se calcula SOBRE LA MISMA venta que ya
 // tiene su split dueño/socio — ver calcularSplitVenta() en data.js — y sale
 // del lado del dueño (montoNetoDueno se reduce), nunca del socio del local.

@@ -1,5 +1,15 @@
 <!DOCTYPE html>
 <html lang="es"><head>
+<!-- OC_DEMO se setea aquí, al inicio del head, antes de que cualquier script
+     se cargue. Así cargarDashboardInicial() siempre ve la bandera correcta
+     aunque mock-backend.js tarde en ejecutarse (red lenta / carga asíncrona). -->
+<script>window.OC_DEMO = true;</script>
+<!-- BUG FIX 2026-07-01: estos dos scripts FALTABAN en docs/ — la demo nunca
+     interceptaba fetch() y todo /api/* devolvia 404 (selector de sucursal
+     roto, hero de error). Deben cargar EN EL HEAD, antes del script principal,
+     para que el mock ya este instalado cuando el app arranque. NO QUITAR. -->
+<script src="./barcode128.js"></script>
+<script src="./mock-backend.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>POSCuenca</title>
@@ -163,7 +173,6 @@
     font-size:26px;
     letter-spacing:0.01em;
   }
-  /* Slogan de la app — fuente nativa clásica, itálica, discreta pero presente */
   header .slogan-app{
     display:block;
     font-family:Verdana,"Helvetica Neue",Helvetica,Arial,sans-serif;
@@ -182,9 +191,6 @@
     margin-top:3px;
     text-transform:uppercase;
   }
-  /* Wrapper del selector: label + select apilados, alineados a la derecha
-     del header. El label "Sucursal / percha" orienta al usuario sin ocupar
-     espacio de la marca izquierda. */
   .selector-ubicacion{
     display:flex;
     flex-direction:column;
@@ -799,7 +805,7 @@
     <div class="sello" id="logoHeader">PC</div>
     <div>
       <h1>POSCuenca</h1>
-      <div class="sub">Mi tienda de artesanías y licores - DEMO</div>
+      <div class="sub">Souvenirs y camisetas de rock - DEMO</div>
     </div>
   </div>
   <div class="selector-ubicacion">
@@ -1819,10 +1825,10 @@ setTimeout(() => {
 }, 800);
 </script>
 
-<script src="/crypto-store.js"></script>
-<script src="/email-recovery.js"></script>
-<script src="/auth-ui.js"></script>
-<script src="/avanzado-extra.js"></script>
-<script src="/help-ui.js"></script>
+<script src="./crypto-store.js"></script>
+<script src="./email-recovery.js"></script>
+<script src="./auth-ui.js"></script>
+<script src="./avanzado-extra.js"></script>
+<script src="./help-ui.js"></script>
 
 </body></html>

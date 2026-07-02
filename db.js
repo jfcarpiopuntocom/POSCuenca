@@ -1,7 +1,7 @@
 // db.js — Persistencia simple en archivo JSON (lowdb).
 // Por qué lowdb y no una base de datos pesada: cero dependencias nativas que puedan
 // fallar al desplegar, cero configuración de servidor de base de datos, y un archivo
-// db.json que se puede respaldar copiándolo. Para un negocio de 1 a 5 perchaes
+// db.json que se puede respaldar copiándolo. Para un negocio de 1 a 5 perchas
 // es más que suficiente y es muy fácil de migrar a Postgres más adelante si crece.
 
 const path = require("path");

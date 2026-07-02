@@ -115,7 +115,7 @@
       <h3 class="seccion" style="margin-top:0;">Acceso y recuperación</h3>
       <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Correo del dueño para recuperar las claves. Una vez guardado se oculta y queda ofuscado.</p>
       <div id="oc-email-row"></div>
-      <div style="margin-top:18px;">
+      <div id="oc-clave-block" style="margin-top:18px;">
         <p style="font-size:14px;color:var(--ink-soft);">Claves (PIN de 3 dígitos). Por seguridad, los códigos actuales NO se muestran aquí (se guardan cifrados) — escribe los NUEVOS solo si quieres cambiarlos.</p>
         <div style="display:flex;flex-direction:column;gap:8px;max-width:340px;">
           <label style="font-size:13px;">Dueño <input id="oc-c-owner" maxlength="3" inputmode="numeric" placeholder="•••" style="margin-left:8px;width:90px;text-align:center;font-family:var(--font-mono);padding:8px;border:2px solid var(--azul-medio);border-radius:5px;"></label>
@@ -137,7 +137,7 @@
     ubicPanel.style.cssText = "text-align:left;margin-top:22px;";
     ubicPanel.innerHTML = `
       <h3 class="seccion" style="margin-top:0;">Ubicaciones</h3>
-      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea, renombra o desactiva locales, puestos o perchaes. Desactivar conserva todo el historial, solo deja de recibir ventas nuevas.</p>
+      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea, renombra o desactiva locales, puestos o perchas. Desactivar conserva todo el historial, solo deja de recibir ventas nuevas.</p>
       <div id="oc-ubic-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
         <label style="font-size:13px;">Nombre<br>
@@ -196,6 +196,7 @@
     // puede recuperar el código nuevo si se le olvida). El correo en sí no
     // se toca aquí — se preserva tal cual esté guardado.
     $("oc-save-codes").addEventListener("click", async () => {
+      if (window.OCAuth.esDemo && window.OCAuth.esDemo()) return; // demo: sin cambio de claves
       const o = $("oc-c-owner").value.trim(), e = $("oc-c-emp").value.trim(), a = $("oc-c-acct").value.trim();
       const valido = (s) => /^[0-9]{3}$/.test(s);
       if (![o, e, a].every(valido)) { msg("oc-codes-msg", "Cada clave debe ser 3 dígitos (0-9).", "var(--rojo)"); return; }
@@ -372,6 +373,7 @@
         <button id="oc-email-save" class="ir" style="background:var(--rust);color:var(--blanco-calido);border-color:var(--rust-deep);">Guardar</button></div>
         <p id="oc-email-msg" style="font-size:14px;margin-top:8px;"></p>`;
       $("oc-email-save").addEventListener("click", () => {
+        if (window.OCAuth.esDemo && window.OCAuth.esDemo()) return; // demo: sin cambio de correo
         const v = $("oc-email-in").value.trim();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { msg("oc-email-msg", "Correo no válido.", "var(--rojo)"); return; }
         window.OCSecure.actualizarCorreo(v);
