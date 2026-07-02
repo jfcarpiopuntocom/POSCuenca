@@ -16,18 +16,21 @@
     return new Date(anio, mes, 0).getDate();
   }
 
+  // Perchas (unidades operativas). sucursalId -> agrupador backend.
   const ubicaciones = [
       {
           "id": "centro",
           "nombre": "Local Centro Histórico",
           "activa": true,
-          "tipo": "propio"
+          "tipo": "propio",
+          "sucursalId": "suc01"
       },
       {
           "id": "mercado",
           "nombre": "Stand Mercado 10 de Agosto",
           "activa": true,
           "tipo": "socio",
+          "sucursalId": "suc02",
           "comisionSocio": 25,
           "metaMensual": 300,
           "escalasComision": [
@@ -54,10 +57,18 @@
           "nombre": "Feria Artesanal El Otorongo",
           "activa": true,
           "tipo": "consignacion",
+          "sucursalId": "suc03",
           "comisionSocio": 30,
           "metaMensual": 200,
           "escalasComision": []
       }
+  ];
+  // Sucursales: agrupadores backend de perchas. En la UI el usuario ve PERCHAS;
+  // la sucursal es el encabezado de sección en el gestor de perchas (Inventario).
+  const sucursales = [
+    { id: "suc01", nombre: "Centro Histórico",          activa: true },
+    { id: "suc02", nombre: "Mercado 10 de Agosto",      activa: true },
+    { id: "suc03", nombre: "El Otorongo",               activa: true },
   ];
 
   const productos = [
@@ -210,7 +221,7 @@
       }
       if (path === "/api/ubicaciones" && opts && opts.method === "POST") {
         if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre de la ubicación es obligatorio." }, 400);
-        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true, comisionSocio: Number(body.comisionSocio) || 0, metaMensual: Number(body.metaMensual) || 0, escalasComision: Array.isArray(body.escalasComision) ? body.escalasComision : [] };
+        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true, comisionSocio: Number(body.comisionSocio) || 0, metaMensual: Number(body.metaMensual) || 0, escalasComision: Array.isArray(body.escalasComision) ? body.escalasComision : [], sucursalId: body.sucursalId || null };
         ubicaciones.push(nueva);
         mov("ubicacion-alta", { ubicacion: nueva.nombre });
         return J(nueva);
@@ -219,6 +230,7 @@
         const u = ubicaciones.find((x) => x.id === m[1]); if (!u) return J({ error: "Ubicación no encontrada." }, 404);
         if (body.nombre && body.nombre.trim()) u.nombre = body.nombre.trim();
         if (body.tipo) u.tipo = body.tipo;
+        if ("sucursalId" in body) u.sucursalId = body.sucursalId || null;
         return J(u);
       }
       if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)\/(activar|desactivar)$/))) {
@@ -238,6 +250,30 @@
         delete gastosMensuales[u.id];
         mov("ubicacion-borrada", { ubicacion: u.nombre, productosBorrados });
         return J({ ok: true, productosBorrados });
+      }
+      // ---- Sucursales (agrupadores backend de perchas) ----
+      if (path === "/api/sucursales" && (!opts || opts.method !== "POST")) return J(sucursales);
+      if (path === "/api/sucursales" && opts && opts.method === "POST") {
+        if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre de la sucursal es obligatorio." }, 400);
+        const nuevaSuc = { id: "suc" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), activa: true };
+        sucursales.push(nuevaSuc);
+        mov("sucursal-alta", { sucursal: nuevaSuc.nombre });
+        return J(nuevaSuc);
+      }
+      const mSuc = path.match(/^\/api\/sucursales\/([^/]+)$/);
+      if (mSuc && opts && opts.method === "PUT") {
+        const s = sucursales.find((x) => x.id === mSuc[1]); if (!s) return J({ error: "Sucursal no encontrada." }, 404);
+        if (body.nombre && body.nombre.trim()) s.nombre = body.nombre.trim();
+        return J(s);
+      }
+      if (mSuc && opts && opts.method === "DELETE") {
+        const tienePerchas = ubicaciones.some((u) => u.sucursalId === mSuc[1]);
+        if (tienePerchas) return J({ error: "Mueve las perchas a otra sucursal antes de borrar esta." }, 400);
+        const idxS = sucursales.findIndex((x) => x.id === mSuc[1]);
+        if (idxS < 0) return J({ error: "Sucursal no encontrada." }, 404);
+        const s = sucursales.splice(idxS, 1)[0];
+        mov("sucursal-baja", { sucursal: s.nombre });
+        return J({ ok: true });
       }
 
       if (path === "/api/dashboard") {
