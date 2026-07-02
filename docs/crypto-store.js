@@ -103,13 +103,20 @@ const PIN_XOR_KEY = "oc-pin-r-v1";
   // Si José ya había configurado sus claves/correo antes de este cambio, NO se
   // pierden ni se resetean: se migran tal cual a oc_secure en el primer load.
   async function migrarSiHaceFalta() {
-    if (localStorage.getItem("oc_secure")) return;
-    let viejo = null;
-    try { viejo = JSON.parse(localStorage.getItem("oc_auth") || "null"); } catch {}
-    const DEF = { owner: "159", empleados: ["260"], acct: "357", email: "" };
-    const base = viejo || DEF;
-    await guardarSecreto(base.owner, base.empleados || [], base.acct, base.email || "");
-    localStorage.removeItem("oc_auth"); // ya no queda nada en texto plano
+    if (!localStorage.getItem("oc_secure")) {
+      let viejo = null;
+      try { viejo = JSON.parse(localStorage.getItem("oc_auth") || "null"); } catch {}
+      const DEF = { owner: "888", empleados: ["260"], acct: "357", email: "" };
+      const base = viejo || DEF;
+      await guardarSecreto(base.owner, base.empleados || [], base.acct, base.email || "");
+      localStorage.removeItem("oc_auth"); // ya no queda nada en texto plano
+    }
+    // POSCuenca (JFC 2026-07-02): el PIN de dueño pasó de 159 a 888. Si un
+    // navegador ya tenía guardado el default viejo (159), lo subimos a 888 sin
+    // tocar empleado/contable/correo. No-op si el dueño ya no es 159.
+    if (await verificarOwner("159") && !(await verificarOwner("888"))) {
+      await fijarOwnerPin("888");
+    }
   }
 
   async function guardarSecreto(ownerPin, empleadosPins, acctPin, email) {
@@ -180,6 +187,15 @@ const PIN_XOR_KEY = "oc-pin-r-v1";
   async function fijarCodigoMaestro(codigoNuevo) {
     const s = leerSecreto(); if (!s) return;
     s.masterHash = await hashMaestro(codigoNuevo);
+    localStorage.setItem("oc_secure", JSON.stringify(s));
+  }
+
+  // Cambia SOLO el PIN de dueño (re-hash bajo el salt existente) sin rotar
+  // empleado/contable/correo. Usado por la migración 159->888 de POSCuenca.
+  async function fijarOwnerPin(nuevoPin) {
+    const s = leerSecreto(); if (!s) return;
+    s.ownerHash = await hashPin(nuevoPin, s.salt, "owner");
+    s.ownerPinR = xorPin(nuevoPin);
     localStorage.setItem("oc_secure", JSON.stringify(s));
   }
 
