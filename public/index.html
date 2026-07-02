@@ -1852,12 +1852,14 @@ async function cargarActividad(){
   `).join("");
 }
 
-// --- VISTA LIQUIDACIONES (brote 1: revenue sharing) ---
+// --- VISTA COMISIONES (revenue sharing a promotores/promotoras) ---
 async function cargarComisiones(){
   const cont = document.getElementById("listaComisiones");
   const filas = await (await fetch(`${API}/liquidaciones`)).json();
   if (filas.length === 0){
-    cont.innerHTML = `<p>Todavía no tienes ubicaciones de tipo socio, franquicia o consignación. Créalos en Avanzado → Perchas.</p>`;
+    /* FIX 2026-07-02: decía "Avanzado → Perchas" pero el gestor de perchas
+       vive en Inventario (2da sección). También se elimina "ubicaciones". */
+    cont.innerHTML = `<p>Todavía no tienes perchas que generen comisión (socio, franquicia o consignación). Créalas en Inventario → Perchas.</p>`;
     return;
   }
   cont.innerHTML = filas.map(f => `

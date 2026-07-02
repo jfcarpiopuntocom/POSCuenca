@@ -127,7 +127,11 @@
       </div>`;
     vista.appendChild(gestion);
 
-    // --- Ubicaciones (crear/renombrar/desactivar) — solo POSCuenca, JFC 2026-07-01.
+    // --- Perchas (crear/renombrar/desactivar) — solo POSCuenca, JFC 2026-07-01.
+    // FIX wording 2026-07-02: el título decía "Ubicaciones" — la unidad
+    // operativa se llama PERCHA en toda la UI (regla de JFC). Este panel
+    // coexiste con el gestor de Perchas de Inventario; su extra es poder
+    // definir meta mensual al crear. Si JFC pide consolidar, quitar este.
     // Vive fuera de la capa contable (es configuración operativa, no dinero),
     // igual que gastos mensuales. Desactivar NO borra historial — ver nota
     // larga en data.js: solo deja de aparecer en el selector operativo y
@@ -136,8 +140,8 @@
     ubicPanel.className = "panel-escaner tag-card";
     ubicPanel.style.cssText = "text-align:left;margin-top:22px;";
     ubicPanel.innerHTML = `
-      <h3 class="seccion" style="margin-top:0;">Ubicaciones</h3>
-      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea, renombra o desactiva locales, puestos o perchas. Desactivar conserva todo el historial, solo deja de recibir ventas nuevas.</p>
+      <h3 class="seccion" style="margin-top:0;">Perchas</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea, renombra o desactiva perchas. Desactivar conserva todo el historial, solo deja de recibir ventas nuevas.</p>
       <div id="oc-ubic-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
         <label style="font-size:13px;">Nombre<br>
