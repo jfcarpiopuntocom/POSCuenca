@@ -902,6 +902,32 @@
       <h3 class="seccion" style="margin-top:24px;">Últimos movimientos</h3>
       <div id="logAjustes" style="max-height:300px;overflow-y:auto;"></div>
     </div>
+    <!-- Perchas (ubicaciones): SOLO dueño, 2da parte de Inventario. Agregar / renombrar / desactivar / borrar. -->
+    <div id="seccionPerchas" style="display:none;">
+      <h3 class="seccion" style="margin-top:24px;">Perchas</h3>
+      <p style="font-size:14px;color:var(--ink-soft);margin:0 0 12px;">Tus locales, puestos o perchas. Agrégalas, renómbralas, desactívalas (conserva el historial) o bórralas.</p>
+      <div class="grid-cajas" id="gridPerchas"></div>
+      <div class="tag-card" style="text-align:left;margin-top:14px;">
+        <h3 class="seccion" style="margin-top:0;font-size:15px;">Agregar percha</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <label style="font-size:13px;">Nombre<br>
+            <input id="perchaNombre" type="text" placeholder="Ej: Feria de Diciembre" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;font-family:var(--font-mono);width:220px;"></label>
+          <label style="font-size:13px;">Tipo<br>
+            <select id="perchaTipo" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;">
+              <option value="propio">Propio</option>
+              <option value="socio">Socio</option>
+              <option value="franquicia">Franquicia</option>
+              <option value="consignacion">Consignación</option>
+            </select></label>
+          <label style="font-size:13px;">Comisión %<br>
+            <input id="perchaComision" type="number" min="0" max="100" placeholder="Ej: 25" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;width:90px;"></label>
+          <label style="font-size:13px;">Meta $<br>
+            <input id="perchaMeta" type="number" min="0" placeholder="Ej: 300" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;width:100px;"></label>
+          <button id="perchaCrear" class="ir" style="padding:10px 16px;">+ Agregar</button>
+        </div>
+        <p id="perchaMsg" style="font-size:14px;margin-top:8px;"></p>
+      </div>
+    </div>
   </section>
 
   <!-- VISTA: ESCANEAR -->
@@ -1164,6 +1190,12 @@ async function cargarInventario(){
     secLog.style.display = esDuenoInv ? "" : "none";
     if (esDuenoInv) cargarLogAjustes();
   }
+  // Perchas: 2da parte de Inventario, SOLO dueño
+  const secPerchas = document.getElementById("seccionPerchas");
+  if (secPerchas) {
+    secPerchas.style.display = esDuenoInv ? "" : "none";
+    if (esDuenoInv) cargarPerchas();
+  }
 }
 
 // Escapa HTML — el log muestra "motivo" tecleado por el empleado (via prompt),
@@ -1186,6 +1218,64 @@ async function cargarLogAjustes(){
     return `<div style="padding:6px 0;border-bottom:1px solid var(--linea,#e0d6c0);font-size:13px;color:var(--ink);"><span>${icono}</span> <strong>${detalle}</strong>${extra} <span style="color:var(--ink-soft);margin-left:8px;">${fecha}</span></div>`;
   }).join('');
 }
+
+// Perchas (ubicaciones): SOLO dueño — CRUD sobre tarjetas, 2da parte de Inventario.
+async function cargarPerchas(){
+  const res = await fetch(API + '/ubicaciones?todas=1');
+  const lista = await res.json();
+  const grid = document.getElementById('gridPerchas');
+  if (!grid) return;
+  grid.innerHTML = lista.map(u => {
+    const inactiva = u.activa === false;
+    const tipo = u.tipo || 'propio';
+    return `<div class="tag-card" style="text-align:left;padding:14px;${inactiva ? 'opacity:.6;' : ''}">
+      <strong style="font-size:16px;color:var(--ink);">${escHtml(u.nombre)}</strong>
+      <div style="font-size:13px;color:var(--ink-soft);margin:4px 0 12px;">${escHtml(tipo)}${inactiva ? ' &middot; DESACTIVADA' : ''}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button data-percha-renombrar="${u.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--azul-medio);border-radius:5px;background:transparent;color:var(--azul-medio);cursor:pointer;">Renombrar</button>
+        <button data-percha-toggle="${u.id}" data-activa="${!inactiva}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rust);border-radius:5px;background:transparent;color:var(--rust);cursor:pointer;">${inactiva ? 'Reactivar' : 'Desactivar'}</button>
+        <button data-percha-borrar="${u.id}" data-nombre="${escHtml(u.nombre)}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rojo,#a3392a);border-radius:5px;background:transparent;color:var(--rojo,#a3392a);cursor:pointer;">Borrar</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  grid.querySelectorAll('[data-percha-renombrar]').forEach(btn => btn.addEventListener('click', async () => {
+    const nuevo = (prompt('Nuevo nombre de la percha:') || '').trim();
+    if (!nuevo) return;
+    const res = await fetch(`${API}/ubicaciones/${btn.dataset.perchaRenombrar}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nombre: nuevo }) });
+    const r = await res.json(); if (!res.ok){ alert(r.error); return; }
+    cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones();
+  }));
+  grid.querySelectorAll('[data-percha-toggle]').forEach(btn => btn.addEventListener('click', async () => {
+    const activaAhora = btn.dataset.activa === 'true';
+    if (activaAhora && !confirm('Esta percha dejará de recibir ventas nuevas. Su historial se conserva. ¿Continuar?')) return;
+    const accion = activaAhora ? 'desactivar' : 'activar';
+    const res = await fetch(`${API}/ubicaciones/${btn.dataset.perchaToggle}/${accion}`, { method:'POST' });
+    if (res.ok){ cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones(); }
+  }));
+  grid.querySelectorAll('[data-percha-borrar]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm(`Borrar la percha "${btn.dataset.nombre}" y TODOS sus productos. Esto no se puede deshacer. ¿Seguro?`)) return;
+    const res = await fetch(`${API}/ubicaciones/${btn.dataset.perchaBorrar}`, { method:'DELETE' });
+    const r = await res.json(); if (!res.ok){ alert(r.error); return; }
+    cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones(); cargarInventario();
+  }));
+}
+
+// Alta de percha (delegado: el boton vive en HTML estatico de Inventario)
+document.addEventListener('click', async (e) => {
+  if (!e.target || e.target.id !== 'perchaCrear') return;
+  const nombre = document.getElementById('perchaNombre').value.trim();
+  const tipo = document.getElementById('perchaTipo').value;
+  const comisionSocio = document.getElementById('perchaComision').value;
+  const metaMensual = document.getElementById('perchaMeta').value;
+  const msg = document.getElementById('perchaMsg');
+  if (!nombre){ msg.style.color='var(--rojo,#a3392a)'; msg.textContent='El nombre es obligatorio.'; return; }
+  const res = await fetch(`${API}/ubicaciones`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nombre, tipo, comisionSocio, metaMensual }) });
+  const r = await res.json(); if (!res.ok){ msg.style.color='var(--rojo,#a3392a)'; msg.textContent=r.error; return; }
+  document.getElementById('perchaNombre').value=''; document.getElementById('perchaComision').value=''; document.getElementById('perchaMeta').value='';
+  msg.style.color='var(--verde,#2f7a4f)'; msg.textContent=`"${r.nombre}" creada.`;
+  cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones();
+});
 
 async function abrirFichaDesdeInventario(id){
   document.querySelector('nav button[data-vista="escanear"]').click();

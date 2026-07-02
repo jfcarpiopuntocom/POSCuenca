@@ -227,6 +227,18 @@
         mov(u.activa ? "ubicacion-reactivada" : "ubicacion-desactivada", { ubicacion: u.nombre });
         return J(u);
       }
+      if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)$/)) && opts && opts.method === "DELETE") {
+        const idx = ubicaciones.findIndex((x) => x.id === m[1]); if (idx < 0) return J({ error: "Percha no encontrada." }, 404);
+        if (ubicaciones.length <= 1) return J({ error: "Debe quedar al menos una percha." }, 400);
+        const u = ubicaciones[idx];
+        // Borrado en cascada: la percha y TODOS sus productos. La UI ya lo advirtio.
+        const productosBorrados = productos.filter((p) => p.ubicacionId === u.id).length;
+        for (let i = productos.length - 1; i >= 0; i--) if (productos[i].ubicacionId === u.id) productos.splice(i, 1);
+        ubicaciones.splice(idx, 1);
+        delete gastosMensuales[u.id];
+        mov("ubicacion-borrada", { ubicacion: u.nombre, productosBorrados });
+        return J({ ok: true, productosBorrados });
+      }
 
       if (path === "/api/dashboard") {
         const ps = filtrar(uid), vh = ventasHoyDe(uid);
