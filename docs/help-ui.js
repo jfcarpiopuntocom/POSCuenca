@@ -35,50 +35,69 @@
   `;
   document.head.appendChild(css);
 
-  // Contenido del DUEÑO: cubre todo el sistema, incluida la capa contable y
-  // la seguridad de las claves — es quien decide y necesita el panorama completo.
+  // Contenido del DUEÑO: cubre todo el sistema con lenguaje des-abrumador.
+  // Sistema Simon: colores = vocabulario visual del dinero, no decoración.
+  // Verde=saludable, Dorado=oportunidad, Naranja=urgente, Rojo=emergencia,
+  // Azul=visión/contable, Negro=inventario muerto. (JFC 2026-07-03)
   const AYUDA_DUENO = `
     <span class="rolTag">Guía del dueño</span>
-    <h3>Tu semáforo (pestaña Hoy)</h3>
+    <h3>Los colores son el idioma de tu negocio</h3>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 10px;">
+      AMIGABLE convierte los números en colores para que no tengas que interpretar nada —
+      el color ya te dice qué hacer. No necesitas saber de contabilidad para entenderlo.
+    </p>
     <ul>
-      <li><b>Verde</b>: todo sano. <b>Amarillo</b>: revisar pronto. <b>Rojo</b>: reponer ya. <b>Azul</b>: buen margen, impúlsalo.</li>
-      <li>Ahí ves de un vistazo cuánto entró, cuánto salió y qué productos piden atención hoy.</li>
+      <li><b style="color:#16A34A;">Verde</b>: saludable — fluye bien, no tocar.</li>
+      <li><b style="color:#B87A10;">Dorado</b>: oportunidad — puede rendir más.</li>
+      <li><b style="color:#C2410C;">Naranja</b>: urgente — requiere atención hoy.</li>
+      <li><b style="color:#B91C1C;">Rojo</b>: emergencia — actúa ahora.</li>
+      <li><b style="color:#1565C0;">Azul</b>: visión contable — la capa de los números reales.</li>
+      <li><b style="color:#111827;">Negro</b>: inventario muerto — ocupa espacio sin generar.</li>
+    </ul>
+    <h3>Pestaña Hoy (tu semáforo)</h3>
+    <ul>
+      <li>Un solo vistazo: cuánto entró, cuánto salió, qué pide acción.</li>
+      <li>El color del encabezado refleja el estado general del día.</li>
     </ul>
     <h3>Inventario y Escanear</h3>
     <ul>
-      <li>Escanea o busca un producto para vender una unidad o ajustar el stock (entradas, mermas, conteos).</li>
-      <li>Cada ajuste queda registrado en Actividad, con motivo y quién lo hizo.</li>
+      <li>Escanea o busca para vender una unidad o ajustar el stock.</li>
+      <li>Cada movimiento queda registrado con motivo y quién lo hizo.</li>
     </ul>
-    <h3>Etiquetas</h3>
-    <li>Genera e imprime etiquetas con código de barras + QR para cada producto nuevo.</li>
-    <h3>Avanzado (candado aparte, solo tú puedes abrirlo)</h3>
+    <h3>Avanzado (solo tú, candado aparte)</h3>
     <ul>
-      <li><b>Gastos mensuales</b>: arriendo, luz, sueldos. Se reparte entre 30 para estimar el gasto del día.</li>
-      <li><b>Capa contable</b> (candado aparte): cuentas T, pérdidas y ganancias, balance e inventario valorizado. Pide tu subclave contable, distinta de tu clave de entrada.</li>
-      <li><b>Acceso y recuperación</b>: registra tu correo ANTES de cambiar tus claves — sin correo guardado no hay forma de recuperar un código que olvides. Los códigos viejos nunca se muestran (se guardan cifrados); solo escribes los nuevos.</li>
+      <li><b>Gastos fijos</b>: arriendo, luz, sueldos — se dividen en 30 días para saber cuánto cuesta abrir mañana.</li>
+      <li><b>Capa contable azul</b>: cuentas T, pérdidas y ganancias, balance. Tiene su propio código — distinto al de entrada.</li>
+      <li><b>Claves y recuperación</b>: guarda tu correo antes de cambiar cualquier clave. Sin correo registrado no hay recuperación posible.</li>
     </ul>
-    <h3>Seguridad</h3>
-    <p>Tus 3 claves (dueño, empleado, contable) se guardan cifradas en este dispositivo, nunca en texto plano. El teclado muestra dígitos con un emoji decorativo que cambia cada vez — no delata tu código a quien mire por encima del hombro.</p>
+    <h3>Seguridad sin paranoia</h3>
+    <p>Tus 3 claves se guardan cifradas en este dispositivo. El teclado mezcla los números con un emoji diferente cada vez — nadie puede memorizarlos mirando por encima de tu hombro.</p>
   `;
 
-  // Contenido del EMPLEADO: solo lo operativo del turno. Sin mención a claves,
-  // gastos ni contabilidad — esa capa ni siquiera le aparece en el menú.
+  // Contenido del EMPLEADO: solo lo operativo del turno, lenguaje simple.
+  // Sin mención a claves, gastos ni contabilidad — esa capa no le aparece.
   const AYUDA_EMPLEADO = `
     <span class="rolTag">Guía del empleado</span>
-    <h3>Tu día a día</h3>
+    <h3>Los colores te dicen qué está pasando</h3>
     <ul>
-      <li><b>Hoy</b>: mira el semáforo del negocio. Rojo = ese producto necesita reponerse pronto, avísale al dueño.</li>
-      <li><b>Escanear</b>: apunta la cámara al código de barras o QR, o escribe el código a mano si la etiqueta está dañada.</li>
-      <li><b>Vender</b>: al escanear un producto, toca "Vender 1" para descontar del stock al momento.</li>
-      <li><b>Ajustar</b>: si algo se rompió, se venció o contaste mal el stock, usa "Ajustar" y escribe el motivo — queda registrado con tu turno.</li>
-      <li><b>Etiquetas</b>: si necesitas reimprimir una etiqueta perdida o dañada, la encuentras aquí por nombre o código.</li>
+      <li><b style="color:#16A34A;">Verde</b>: bien. <b style="color:#C2410C;">Naranja</b>: avisar al dueño pronto. <b style="color:#B91C1C;">Rojo</b>: avisar ya.</li>
+      <li>No necesitas interpretar nada — el color hace el trabajo.</li>
     </ul>
+    <h3>Tu turno en 4 pasos</h3>
+    <ul>
+      <li><b>Hoy</b>: mira el resumen del día al entrar. Si hay rojo, avisa.</li>
+      <li><b>Escanear</b>: apunta la cámara al código de barras o QR. Si la etiqueta está dañada, escribe el código a mano.</li>
+      <li><b>Vender</b>: toca "Vender 1" para descontar del stock al momento.</li>
+      <li><b>Ajustar</b>: si algo se rompió, se venció o el conteo estaba mal — usa Ajustar y escribe el motivo. Queda registrado.</li>
+    </ul>
+    <h3>Etiquetas</h3>
+    <p>Si necesitas reimprimir una etiqueta perdida o dañada, búscala por nombre o código.</p>
   `;
 
   const modal = document.createElement("div");
   modal.id = "oc-help-modal";
   modal.innerHTML = `<div id="oc-help-sheet">
-    <h2>¿Cómo funciona POSCuenca?</h2>
+    <h2>¿Cómo funciona AMIGABLE?</h2>
     <!-- Slogan informal de Amigable (JFC 2026-07-02): "tu negocio, a color".
          Va aquí y en la bienvenida (welcome-ui.js). El formal "Amigable: punto
          de venta y control de inventario" vive en el footer y la bienvenida. -->

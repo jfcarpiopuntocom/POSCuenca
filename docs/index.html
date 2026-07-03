@@ -50,6 +50,15 @@
     --nav-h:78px;
     --sidebar-w:248px;
     --header-h:104px;
+    /* === SISTEMA SIMON: vocabulario visual del dinero, JFC 2026-07-03 ===
+       Verde=saludable  Dorado=oportunidad  Azul=vision/contable
+       Naranja=urgente  Rojo=emergencia      Negro=inventario muerto   */
+    --sim-verde:#22C55E;  --sim-verde-bg:#F0FDF4;  --sim-verde-dk:#16A34A;
+    --sim-dorado:#E8A020; --sim-dorado-bg:#FFFBEB; --sim-dorado-dk:#B87A10;
+    --sim-azul:#2196F3;   --sim-azul-bg:#EFF6FF;   --sim-azul-dk:#1565C0;
+    --sim-naranja:#F97316;--sim-naranja-bg:#FFF7ED; --sim-naranja-dk:#C2410C;
+    --sim-rojo:#EF4444;   --sim-rojo-bg:#FEF2F2;   --sim-rojo-dk:#B91C1C;
+    --sim-negro:#374151;  --sim-negro-bg:#F9FAFB;   --sim-negro-dk:#111827;
   }
   *{box-sizing:border-box;}
   html{-webkit-tap-highlight-color:transparent;}
@@ -61,11 +70,7 @@
   body{
     margin:0;
     font-family:var(--font-body);
-    background-color:var(--crema);
-    background-image:
-      repeating-linear-gradient(to bottom, transparent 0 31px, rgba(33,28,20,0.05) 31px 32px),
-      radial-gradient(circle at 1px 1px, rgba(33,28,20,0.07) 1px, transparent 0);
-    background-size:auto, 3px 3px;
+    background-color:#FFFFFF;
     color:var(--ink);
     -webkit-font-smoothing:antialiased;
     text-rendering:optimizeLegibility;
@@ -272,10 +277,13 @@
     nav button:not(.activo):hover{ background:rgba(33,28,20,0.06); color:var(--ink); }
   }
   nav button svg{ width:20px; height:20px; }
-  nav button.activo{
-    background:var(--rust);
-    color:var(--blanco-calido);
-  }
+  nav button[data-vista="hoy"].activo{background:var(--sim-verde);color:#fff;}
+  nav button[data-vista="inventario"].activo{background:var(--sim-dorado);color:#fff;}
+  nav button[data-vista="escanear"].activo{background:#374151;color:#fff;}
+  nav button[data-vista="etiquetas"].activo{background:#374151;color:#fff;}
+  nav button[data-vista="perchas"].activo{background:var(--sim-azul);color:#fff;}
+  nav button[data-vista="comisiones"].activo{background:var(--sim-dorado);color:#fff;}
+  nav button[data-vista="avanzado"].activo{background:var(--sim-azul);color:#fff;}
   nav button.activo svg{ transform:scale(1.05); }
   nav button:active{ transform:scale(0.94); }
 
@@ -303,9 +311,9 @@
     background-image:radial-gradient(circle at 1px 1px, rgba(255,255,255,0.09) 1px, transparent 0);
     background-size:14px 14px, auto;
   }
-  .hero-semaforo.verde{background-color:var(--verde); --tc-bg:var(--verde);}
-  .hero-semaforo.amarillo{background-color:#8f600c;}
-  .hero-semaforo.rojo{background-color:var(--rojo);}
+  .hero-semaforo.verde{background-color:var(--sim-verde); --tc-bg:var(--sim-verde);}
+  .hero-semaforo.amarillo{background-color:var(--sim-naranja); --tc-bg:var(--sim-naranja);}
+  .hero-semaforo.rojo{background-color:var(--sim-rojo); --tc-bg:var(--sim-rojo);}
   .hero-semaforo h2{
     margin:0 0 8px 0;
     font-family:var(--font-serif);
@@ -369,8 +377,11 @@
     display:flex;
     align-items:center;
   }
-  .lista-alertas li.rojo{background:var(--rojo-claro); color:var(--rojo); border:2px solid var(--rojo);}
-  .lista-alertas li.amarillo{background:var(--amarillo-claro); color:var(--amarillo); border:2px solid var(--amarillo);}
+  .lista-alertas li.verde{background:var(--sim-verde-bg); color:var(--sim-verde-dk); border:2px solid var(--sim-verde);}
+  .lista-alertas li.amarillo{background:var(--sim-dorado-bg); color:var(--sim-dorado-dk); border:2px solid var(--sim-dorado);}
+  .lista-alertas li.naranja{background:var(--sim-naranja-bg); color:var(--sim-naranja-dk); border:2px solid var(--sim-naranja);}
+  .lista-alertas li.rojo{background:var(--sim-rojo-bg); color:var(--sim-rojo-dk); border:2px solid var(--sim-rojo);}
+  .lista-alertas li.negro{background:var(--sim-negro-bg); color:var(--sim-negro-dk); border:2px solid var(--sim-negro);}
 
   /* ================= INVENTARIO ================= */
   .grid-cajas{
@@ -391,22 +402,25 @@
   }
   .caja:hover{transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,0.18);}
   .caja:active{transform:translateY(0); box-shadow:none;}
-  .caja.verde{background:#1DB954; border-color:#17a347;}
-  .caja.amarillo{background:#FFB300; border-color:#E6A100;}
-  .caja.rojo{background:#E53935; border-color:#C62828;}
-  .caja.azul{background:#2196F3; border-color:#1976D2;}
-  /* Fondos oscuros (verde/rojo/azul): texto blanco */
-  .caja.verde .nombre, .caja.rojo .nombre, .caja.azul .nombre{color:#FFFFFF !important;}
-  .caja.verde .detalle, .caja.rojo .detalle, .caja.azul .detalle{color:#E0E0E0 !important;}
-  .caja.verde .stock, .caja.rojo .stock, .caja.azul .stock{color:#FFFFFF !important;}
-  .caja.verde [data-ajuste-menos], .caja.rojo [data-ajuste-menos], .caja.azul [data-ajuste-menos],
-  .caja.verde [data-ajuste-mas], .caja.rojo [data-ajuste-mas], .caja.azul [data-ajuste-mas],
-  .caja.verde [data-estrella-toggle], .caja.rojo [data-estrella-toggle], .caja.azul [data-estrella-toggle]
+  .caja.verde{background:var(--sim-verde); border-color:var(--sim-verde-dk);}
+  .caja.amarillo{background:var(--sim-dorado); border-color:var(--sim-dorado-dk);}
+  .caja.rojo{background:var(--sim-rojo); border-color:var(--sim-rojo-dk);}
+  .caja.naranja{background:var(--sim-naranja); border-color:var(--sim-naranja-dk);}
+  .caja.negro{background:var(--sim-negro); border-color:var(--sim-negro-dk);}
+  .caja.azul{background:var(--sim-azul); border-color:var(--sim-azul-dk);}
+  /* Fondos oscuros: texto blanco */
+  .caja.verde .nombre,.caja.rojo .nombre,.caja.azul .nombre,.caja.naranja .nombre,.caja.negro .nombre{color:#FFFFFF !important;}
+  .caja.verde .detalle,.caja.rojo .detalle,.caja.azul .detalle,.caja.naranja .detalle,.caja.negro .detalle{color:rgba(255,255,255,.85) !important;}
+  .caja.verde .stock,.caja.rojo .stock,.caja.azul .stock,.caja.naranja .stock,.caja.negro .stock{color:#FFFFFF !important;}
+  .caja.verde [data-ajuste-menos],.caja.rojo [data-ajuste-menos],.caja.azul [data-ajuste-menos],.caja.naranja [data-ajuste-menos],.caja.negro [data-ajuste-menos],
+  .caja.verde [data-ajuste-mas],.caja.rojo [data-ajuste-mas],.caja.azul [data-ajuste-mas],.caja.naranja [data-ajuste-mas],.caja.negro [data-ajuste-mas],
+  .caja.verde [data-estrella-toggle],.caja.rojo [data-estrella-toggle],.caja.azul [data-estrella-toggle],.caja.naranja [data-estrella-toggle],.caja.negro [data-estrella-toggle]
   {color:#FFFFFF !important; border-color:#FFFFFF !important;}
-  /* Fondo amarillo (claro): tinta oscura */
-  .caja.amarillo .nombre{color:#1e1a12 !important;}
-  .caja.amarillo .detalle{color:#5d5340 !important;}
-  .caja.amarillo .stock{color:#1e1a12 !important;}
+  /* Dorado=oportunidad: tinta oscura */
+  .caja.amarillo .nombre{color:#5C3A00 !important;}
+  .caja.amarillo .detalle{color:#7A5200 !important;}
+  .caja.amarillo .stock{color:#5C3A00 !important;}
+  .caja.amarillo [data-ajuste-menos],.caja.amarillo [data-ajuste-mas],.caja.amarillo [data-estrella-toggle]{color:#5C3A00 !important; border-color:#5C3A00 !important;}
   .caja .estrella-badge{
     position:absolute; top:8px; right:8px;
     font-size:20px; line-height:1;
@@ -457,10 +471,12 @@
     transform:translateY(-50%);
     background:var(--ink-soft);
   }
-  .filtros-estado button[data-estado="rojo"]::before{background:#E53935;}
-  .filtros-estado button[data-estado="amarillo"]::before{background:#FFB300;}
-  .filtros-estado button[data-estado="verde"]::before{background:#1DB954;}
-  .filtros-estado button[data-estado="azul"]::before{background:#2196F3;}
+  .filtros-estado button[data-estado="rojo"]::before{background:var(--sim-rojo);}
+  .filtros-estado button[data-estado="amarillo"]::before{background:var(--sim-dorado);}
+  .filtros-estado button[data-estado="verde"]::before{background:var(--sim-verde);}
+  .filtros-estado button[data-estado="azul"]::before{background:var(--sim-azul);}
+  .filtros-estado button[data-estado="naranja"]::before{background:var(--sim-naranja);}
+  .filtros-estado button[data-estado="negro"]::before{background:var(--sim-negro);}
   .filtros-estado button[data-estado=""]{padding-left:14px;}
   .filtros-estado button.activo{
     background:var(--azul-medio);
@@ -1159,9 +1175,9 @@ async function cargarHoy(){
   const hero = document.getElementById("heroSemaforo");
   hero.className = "hero-semaforo tag-card " + data.semaforoGeneral;
   const titulos = {
-    verde: "Tu negocio está en verde hoy.",
-    amarillo: "Tu negocio está en amarillo: hay cosas que revisar.",
-    rojo: "Atención: hay alertas urgentes hoy."
+    verde: "Todo fluye hoy. Tu negocio está saludable.",
+    amarillo: "Hay cosas que piden atención — manejable, no urgente.",
+    rojo: "Necesitas actuar hoy — hay emergencias en tu negocio."
   };
   document.getElementById("heroTitulo").textContent = titulos[data.semaforoGeneral] || "Tu negocio hoy";
   // Plata del negocio (ganancia/entra/sale/inventario): SOLO dueño. El titular
@@ -1199,7 +1215,7 @@ async function cargarHoy(){
       cont.innerHTML = estrellas.length ? `
         <h3 class="seccion">Para impulsar hoy ★</h3>
         <ul class="lista-alertas">${estrellas.map(p =>
-          `<li class="amarillo" style="background:var(--amarillo-claro);color:var(--amarillo);border:2px solid var(--amarillo);"><span style="margin-right:8px;">⭐</span>${escHtml(p.nombre)} · ${p.stockActual} en stock · ${fmtMoney(p.precio)}</li>`
+          `<li class="amarillo" style="background:var(--sim-dorado-bg);color:var(--sim-dorado-dk);border:2px solid var(--sim-dorado);"><span style="margin-right:8px;">⭐</span>${escHtml(p.nombre)} · ${p.stockActual} en stock · ${fmtMoney(p.precio)}</li>`
         ).join("")}</ul>` : "";
     }
   } catch (_) { /* sin estrellas: el bloque queda vacío */ }
@@ -1210,7 +1226,7 @@ async function cargarHoy(){
   if (mood && esDuenoHoy) {
     const ahora = new Date();
     const dia = Math.floor((ahora - new Date(ahora.getFullYear(), 0, 0)) / 86400000);
-    mood.innerHTML = `<div class="tag-card" style="margin-top:16px;padding:16px;border-left:5px solid var(--azul-oscuro,#152840);">
+    mood.innerHTML = `<div class="tag-card" style="margin-top:16px;padding:16px;border-left:5px solid var(--sim-azul);">
       <div style="font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">El apunte de hoy</div>
       <div style="font-family:var(--font-display);font-size:17px;color:var(--ink);line-height:1.35;">${MOODS[dia % MOODS.length]}</div>
     </div>`;
