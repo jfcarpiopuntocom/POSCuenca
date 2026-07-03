@@ -75,7 +75,7 @@
     respaldo.innerHTML = `
       <h3 class="seccion" style="margin-top:0;">Respaldo</h3>
       <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">
-        Descarga TODO tu negocio (productos, ventas, movimientos, gastos, claves) en un archivo. Guárdalo en tu correo, tu Drive, donde sea — es tu copia de seguridad si se borra el caché o se daña el dispositivo.</p>
+        Descarga TODO tu negocio (productos, ventas, movimientos, gastos, claves y fotos de perchas) en un archivo. Guárdalo en tu correo, tu Drive, donde sea — es tu copia de seguridad si se borra el caché o se daña el dispositivo.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button id="oc-exportar" class="ir" style="background:var(--azul-medio);color:var(--blanco-calido);border-color:var(--azul-oscuro);">⬇️ Exportar respaldo</button>
         <label class="ir" style="background:var(--rust);color:var(--blanco-calido);border-color:var(--rust-deep);display:inline-flex;align-items:center;cursor:pointer;">⬆️ Importar respaldo
@@ -257,7 +257,15 @@
     $("oc-exportar").addEventListener("click", async () => {
       try {
         const datos = await (await fetch(`${API}/respaldo/exportar`)).json();
-        const paquete = { fecha: new Date().toISOString(), datos, oc_secure: localStorage.getItem("oc_secure") };
+        // Fotos de perchas (rec 26 completo, JFC 2026-07-02): viven en
+        // localStorage (vp_foto_percha_*). Sin esto el respaldo perdería las
+        // fotos reales al restaurar en otra tablet.
+        const fotosPerchas = {};
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.indexOf("vp_foto_percha_") === 0) fotosPerchas[k] = localStorage.getItem(k);
+        }
+        const paquete = { fecha: new Date().toISOString(), datos, oc_secure: localStorage.getItem("oc_secure"), fotosPerchas };
         const blob = new Blob([JSON.stringify(paquete, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -278,6 +286,8 @@
         const r = await res.json();
         if (!res.ok) { msg("oc-respaldo-msg", r.error, "var(--rojo)"); return; }
         if (paquete.oc_secure) localStorage.setItem("oc_secure", paquete.oc_secure);
+        // Restaurar fotos de perchas (rec 26 completo).
+        if (paquete.fotosPerchas) Object.entries(paquete.fotosPerchas).forEach(([k, v]) => { try { localStorage.setItem(k, v); } catch (_) {} });
         msg("oc-respaldo-msg", "Respaldo importado. Recarga la página para ver los datos restaurados.", "var(--verde)");
       } catch (err) { msg("oc-respaldo-msg", "No se pudo importar: " + err.message, "var(--rojo)"); }
       e.target.value = "";
