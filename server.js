@@ -263,7 +263,12 @@ app.post("/api/escanear", asyncRoute(async (req, res) => {
 // --- Venta rápida ---
 app.post("/api/productos/:id/venta", asyncRoute(async (req, res) => {
   const cantidad = Number.isInteger(req.body.cantidad) && req.body.cantidad > 0 ? req.body.cantidad : 1;
-  const r = await data.venderUno(req.params.id, cantidad);
+  // BUG FIJADO 2026-07-03: promotorId nunca se reenviaba a data.venderUno(),
+  // que sí lo soporta (atribuye comisión). Resultado: en el servidor REAL
+  // (no la demo estática) las comisiones a promotores quedaban en $0 siempre,
+  // sin error visible. Ver también el fallback a ubic.promotoraId en data.js.
+  const promotorId = req.body.promotorId || null;
+  const r = await data.venderUno(req.params.id, cantidad, promotorId);
   if (r.error) return res.status(400).json({ error: r.error });
   res.json({ producto: await toFicha(r.producto), ventaId: r.ventaId });
 }));

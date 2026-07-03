@@ -450,7 +450,14 @@ function importarTodo(datos) {
   }
   if (datos.modo && datos.modo !== "demo") return { error: "Este respaldo es de otro modo (Loyverse) y no aplica aquí." };
   const { modo, ...estado } = datos;
-  if (!estado.productos || !estado.ubicaciones) return { error: "El archivo no parece un respaldo válido de POSCuenca." };
+  // BUG FIJADO 2026-07-03: la validación solo comprobaba que productos/
+  // ubicaciones fueran "truthy" (un string u objeto también lo son), no que
+  // fueran ARRAYS de verdad. db.setState() reemplaza TODO el estado sin más
+  // chequeo — un respaldo corrupto o mal armado dejaba la app inservible
+  // hasta editar el archivo db.json a mano. Ahora se exige el tipo correcto.
+  if (!Array.isArray(estado.productos) || !Array.isArray(estado.ubicaciones)) {
+    return { error: "El archivo no parece un respaldo válido de POSCuenca." };
+  }
   db.setState(estado);
   return { ok: true };
 }
@@ -483,7 +490,7 @@ function importarTodo(datos) {
       return u;
     },
 
-    async actualizarUbicacion(id, { nombre, tipo, comisionSocio, metaMensual, escalasComision }) {
+    async actualizarUbicacion(id, { nombre, tipo, comisionSocio, metaMensual, escalasComision, promotoraId }) {
       const u = db.get("ubicaciones").find({ id }).value();
       if (!u) return { error: "Ubicación no encontrada." };
       const cambios = {};
@@ -492,6 +499,10 @@ function importarTodo(datos) {
       if (comisionSocio !== undefined) cambios.comisionSocio = Number(comisionSocio) || 0;
       if (metaMensual !== undefined) cambios.metaMensual = Number(metaMensual) || 0;
       if (Array.isArray(escalasComision)) cambios.escalasComision = escalasComision;
+      // FIX (code-review 2026-07-03): sin esto, venderUno() nunca podía
+      // resolver el promotor asignado a la percha en el servidor real —
+      // el campo se aceptaba en el PUT del frontend pero jamás se guardaba.
+      if (promotoraId !== undefined) cambios.promotoraId = promotoraId || null;
       db.get("ubicaciones").find({ id }).assign(cambios).write();
       return db.get("ubicaciones").find({ id }).value();
     },
@@ -543,7 +554,11 @@ function importarTodo(datos) {
         ubicacionId: datos.ubicacionId || "todas",
         precio: Number(datos.precio) || 0,
         costo: Number(datos.costo) || 0,
-        stockActual: Number(datos.stockInicial) || 0,
+        // BUG FIJADO 2026-07-03: venderUno/ajustar/anularVenta SIEMPRE
+        // impiden que el stock quede negativo, pero la creación no tenía
+        // ese piso — un stockInicial negativo (typo o dato malo) corrompía
+        // la valorización de inventario (precio*stockActual) desde el día 1.
+        stockActual: Math.max(0, Number(datos.stockInicial) || 0),
         umbralRojo: Number(datos.umbralRojo) || 5,
         umbralAmarillo: Number(datos.umbralAmarillo) || 10,
         proveedor: datos.proveedor || "",
@@ -574,6 +589,18 @@ function importarTodo(datos) {
     async eliminarProducto(id) {
       const p = db.get("productos").find({ id }).value();
       if (!p) return { error: "Producto no encontrado." };
+      // BUG FIJADO 2026-07-03: aprobarTransferencia() ya resta el stock del
+      // origen en cuanto se aprueba (para no venderlo dos veces mientras
+      // viaja) y solo lo suma al destino cuando alguien confirma recepción.
+      // Sin este guard, borrar el producto origen O destino mientras una
+      // transferencia sigue "en_transito" dejaba esas unidades restadas para
+      // siempre, sin ningún producto que las reciba: stock perdido del
+      // sistema sin dejar rastro ni forma de recuperarlo.
+      const enTransito = db.get("transferencias").value()
+        .find((t) => t.estado === "en_transito" && (t.productoOrigenId === id || t.productoDestinoId === id));
+      if (enTransito) {
+        return { error: `"${p.nombre}" tiene una transferencia en tránsito (${enTransito.cantidad} unidades). Espera a que se confirme o se resuelva antes de borrarlo.` };
+      }
       db.get("productos").remove({ id }).write();
       registrarMovimiento("baja", { producto: p.nombre, sku: p.sku, ubicacion: nombreUbicacionLocal(p.ubicacionId) });
       return { ok: true };
@@ -585,11 +612,26 @@ function importarTodo(datos) {
       const ubic = db.get("ubicaciones").find({ id: p.ubicacionId }).value();
       if (ubic && ubic.activa === false) return { error: `"${ubic.nombre}" está desactivada — no admite ventas nuevas.` };
       if (p.stockActual < cantidad) return { error: `No hay suficiente stock disponible (quedan ${p.stockActual}).` };
+      // BUG FIJADO 2026-07-03: sin promotorId explícito, la venta nunca miraba
+      // si la percha (ubic) ya tiene un promotor asignado (ubic.promotoraId,
+      // que la UI de Perchas sí permite configurar) — esa asignación se
+      // guardaba pero jamás afectaba el cálculo de comisión de ninguna venta.
+      // Fallback silencioso y no-bloqueante: si el promotor asignado ya no
+      // existe o está desactivado, la venta sigue sin comisión (no se rompe).
+      const promotorIdResuelto = promotorId || (ubic && ubic.promotoraId) || null;
       let promotor = null;
-      if (promotorId) {
-        promotor = db.get("promotores").find({ id: promotorId }).value();
-        if (!promotor || promotor.activo === false) return { error: "Ese promotor no existe o está desactivado." };
-        if (!(promotor.ubicacionesIds || []).includes(p.ubicacionId)) return { error: `"${promotor.nombre}" no está asignado a esta ubicación.` };
+      if (promotorIdResuelto) {
+        const candidato = db.get("promotores").find({ id: promotorIdResuelto }).value();
+        if (promotorId) {
+          // Promotor explícito por venta: sí exige que exista, esté activo,
+          // y esté asignado a esta ubicación (comportamiento original).
+          if (!candidato || candidato.activo === false) return { error: "Ese promotor no existe o está desactivado." };
+          if (!(candidato.ubicacionesIds || []).includes(p.ubicacionId)) return { error: `"${candidato.nombre}" no está asignado a esta ubicación.` };
+          promotor = candidato;
+        } else if (candidato && candidato.activo !== false) {
+          // Promotor resuelto por la percha: no bloquea la venta si falta.
+          promotor = candidato;
+        }
       }
 
       const ventaId = randomUUID();
@@ -616,6 +658,21 @@ function importarTodo(datos) {
     async anularVenta(ventaId) {
       const venta = db.get("ventas").find({ id: ventaId }).value();
       if (!venta) return { error: "Esta venta ya no se puede anular (pasó el tiempo o ya se anuló)." };
+      // BUG FIJADO 2026-07-03: la UI muestra un botón "anular" con cuenta
+      // regresiva de 5s y lo hace desaparecer al vencer — pero el endpoint
+      // aceptaba anular CUALQUIER venta pasada, sin importar la antigüedad.
+      // Eso permitía borrar retroactivamente ventas ya liquidadas a un socio
+      // o de días/meses atrás con solo conocer el ventaId. VENTANA_ANULACION_MS
+      // da margen generoso sobre los 5s de la UI (latencia de red incluida)
+      // sin bloquear jamás un clic legítimo.
+      const VENTANA_ANULACION_MS = 30 * 1000;
+      // Fecha ausente/inválida (venta vieja de un respaldo previo a este
+      // campo) da NaN, y "NaN > 30000" es false — fallaría abierta (siempre
+      // anulable). Number.isFinite() la rechaza en su lugar (falla cerrada).
+      const antiguedadMs = Date.now() - new Date(venta.fecha).getTime();
+      if (!Number.isFinite(antiguedadMs) || antiguedadMs > VENTANA_ANULACION_MS) {
+        return { error: "Esta venta ya no se puede anular (pasó el tiempo o ya se anuló)." };
+      }
       const p = db.get("productos").find({ id: venta.productoId }).value();
       if (!p) return { error: "Producto no encontrado." };
       db.get("productos").find({ id: venta.productoId }).assign({ stockActual: p.stockActual + venta.cantidad }).write();

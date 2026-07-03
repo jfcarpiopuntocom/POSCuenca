@@ -223,6 +223,12 @@
       // Borrado definitivo (dueno, doble confirmacion en la UI).
       if ((m = path.match(/^\/api\/productos\/([^/]+)$/)) && opts && opts.method === "DELETE") {
         const i = productos.findIndex((x) => x.id === m[1]); if (i === -1) return J({ error: "Producto no encontrado." }, 404);
+        // BUG FIJADO 2026-07-03: una transferencia "en_transito" ya restó el
+        // stock del origen esperando que el destino lo reciba. Borrar el
+        // producto origen o destino en ese estado perdía esas unidades para
+        // siempre, sin rastro. Bloquear hasta que se confirme o resuelva.
+        const enTransito = transferencias.find((t) => t.estado === "en_transito" && (t.productoOrigenId === m[1] || t.productoDestinoId === m[1]));
+        if (enTransito) return J({ error: `"${productos[i].nombre}" tiene una transferencia en tránsito (${enTransito.cantidad} unidades). Espera a que se confirme o se resuelva antes de borrarlo.` }, 400);
         const borrado = productos.splice(i, 1)[0];
         mov("baja", { producto: borrado.nombre, sku: borrado.sku, ubicacion: nombreUbic(borrado.ubicacionId) });
         return J({ ok: true });
@@ -359,7 +365,9 @@
         const nuevo = {
           id: "p" + Math.random().toString(36).slice(2, 9), nombre: body.nombre, categoria: body.categoria || "General",
           sku: body.sku || body.barcode, barcode: body.barcode, ubicacionId: body.ubicacionId || "todas",
-          precio: Number(body.precio) || 0, costo: Number(body.costo) || 0, stockActual: Number(body.stockInicial) || 0,
+          // BUG FIJADO 2026-07-03: sin piso en 0, un stockInicial negativo
+          // corrompía la valorización de inventario desde la creación.
+          precio: Number(body.precio) || 0, costo: Number(body.costo) || 0, stockActual: Math.max(0, Number(body.stockInicial) || 0),
           umbralRojo: Number(body.umbralRojo) || 5, umbralAmarillo: Number(body.umbralAmarillo) || 10, proveedor: body.proveedor || "",
           perecible: !!body.perecible, fechaCaducidad: body.perecible ? (body.fechaCaducidad || null) : null,
           metodoCosteo: body.metodoCosteo === "LIFO" ? "LIFO" : "FIFO",
@@ -388,6 +396,17 @@
         const idx = ventas.findIndex((v) => v.id === m[1]);
         if (idx === -1) return J({ error: "Esta venta ya no se puede anular (pasó el tiempo o ya se anuló)." }, 400);
         const venta = ventas[idx];
+        // BUG FIJADO 2026-07-03: la UI muestra 5s de cuenta regresiva para
+        // anular y luego oculta el botón, pero este endpoint aceptaba anular
+        // cualquier venta pasada sin límite de tiempo (podía borrar ventas
+        // ya liquidadas a un socio). Margen generoso sobre esos 5s. Fecha
+        // ausente/invalida da NaN, y "NaN > 30000" es false, asi que se usa
+        // Number.isFinite() para fallar CERRADO (rechazar) en vez de abierto.
+        const VENTANA_ANULACION_MS = 30 * 1000;
+        const antiguedadMs = Date.now() - new Date(venta.fecha).getTime();
+        if (!Number.isFinite(antiguedadMs) || antiguedadMs > VENTANA_ANULACION_MS) {
+          return J({ error: "Esta venta ya no se puede anular (pasó el tiempo o ya se anuló)." }, 400);
+        }
         const p = productos.find((x) => x.id === venta.productoId);
         if (!p) return J({ error: "Producto no encontrado." }, 404);
         p.stockActual += venta.cantidad;
@@ -439,11 +458,18 @@
       }
       if (path === "/api/respaldo/importar") {
         try {
-          if (!body.productos || !body.ubicaciones) return J({ error: "El archivo no parece un respaldo válido." }, 400);
+          // BUG FIJADO 2026-07-03: solo se comprobaba "truthy", no que fueran
+          // arrays reales. Un respaldo corrupto (ej. productos como string)
+          // rompía la demo entera: push(...string) reparte cada CARÁCTER
+          // como si fuera un producto, y toda la app queda inservible hasta
+          // recargar la página, perdiendo la sesión en curso.
+          if (!Array.isArray(body.productos) || !Array.isArray(body.ubicaciones)) {
+            return J({ error: "El archivo no parece un respaldo válido." }, 400);
+          }
           productos.length = 0; productos.push(...body.productos);
           ubicaciones.length = 0; ubicaciones.push(...body.ubicaciones);
-          ventas.length = 0; ventas.push(...(body.ventas || []));
-          movimientos.length = 0; movimientos.push(...(body.movimientos || []));
+          ventas.length = 0; ventas.push(...(Array.isArray(body.ventas) ? body.ventas : []));
+          movimientos.length = 0; movimientos.push(...(Array.isArray(body.movimientos) ? body.movimientos : []));
           if (body.configuracion && body.configuracion.gastosMensuales) {
             Object.keys(gastosMensuales).forEach((k) => delete gastosMensuales[k]);
             Object.assign(gastosMensuales, body.configuracion.gastosMensuales);
