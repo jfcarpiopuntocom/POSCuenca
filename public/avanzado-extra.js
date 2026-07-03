@@ -127,57 +127,11 @@
       </div>`;
     vista.appendChild(gestion);
 
-    // --- Perchas (crear/renombrar/desactivar) — solo POSCuenca, JFC 2026-07-01.
-    // FIX wording 2026-07-02: el título decía "Ubicaciones" — la unidad
-    // operativa se llama PERCHA en toda la UI (regla de JFC). Este panel
-    // coexiste con el gestor de Perchas de Inventario; su extra es poder
-    // definir meta mensual al crear. Si JFC pide consolidar, quitar este.
-    // Vive fuera de la capa contable (es configuración operativa, no dinero),
-    // igual que gastos mensuales. Desactivar NO borra historial — ver nota
-    // larga en data.js: solo deja de aparecer en el selector operativo y
-    // deja de admitir ventas/altas de producto nuevas.
-    const ubicPanel = document.createElement("div");
-    ubicPanel.className = "panel-escaner tag-card";
-    ubicPanel.style.cssText = "text-align:left;margin-top:22px;";
-    ubicPanel.innerHTML = `
-      <h3 class="seccion" style="margin-top:0;">Perchas</h3>
-      <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea, renombra o desactiva perchas. Desactivar conserva todo el historial, solo deja de recibir ventas nuevas.</p>
-      <div id="oc-ubic-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-        <label style="font-size:13px;">Nombre<br>
-          <input id="oc-ubic-nombre" type="text" placeholder="Ej: Feria de Diciembre" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;font-family:var(--font-mono);width:220px;"></label>
-        <label style="font-size:13px;">Tipo<br>
-          <select id="oc-ubic-tipo" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;">
-            <option value="propio">Propio</option>
-            <option value="socio">Socio</option>
-            <option value="franquicia">Franquicia</option>
-            <option value="consignacion">Consignación</option>
-          </select></label>
-        <label style="font-size:13px;">Comisión base %<br>
-          <input id="oc-ubic-comision" type="number" min="0" max="100" placeholder="Ej: 25" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;width:90px;"></label>
-        <label style="font-size:13px;">Meta mensual $<br>
-          <input id="oc-ubic-meta" type="number" min="0" placeholder="Ej: 300" style="padding:8px;border:2px solid var(--azul-medio);border-radius:5px;width:100px;"></label>
-        <button id="oc-ubic-crear" class="ir" style="background:var(--azul-medio);color:var(--blanco-calido);border-color:var(--azul-oscuro);">+ Agregar</button>
-      </div>
-      <p style="font-size:12px;color:var(--ink-soft);margin-top:6px;">Comisión y meta solo aplican a tipos socio/franquicia/consignación. Con meta definida, la comisión puede subir automáticamente por escalas (ver seed de ejemplo) — configurar escalas propias llega en una próxima vuelta.</p>
-      <p id="oc-ubic-msg" style="font-size:14px;margin-top:8px;"></p>`;
-    vista.appendChild(ubicPanel);
-    renderUbicaciones();
-
-    $("oc-ubic-crear").addEventListener("click", async () => {
-      const nombre = $("oc-ubic-nombre").value.trim();
-      const tipo = $("oc-ubic-tipo").value;
-      const comisionSocio = $("oc-ubic-comision").value;
-      const metaMensual = $("oc-ubic-meta").value;
-      if (!nombre) { msg("oc-ubic-msg", "El nombre es obligatorio.", "var(--rojo)"); return; }
-      const res = await fetch(`${API}/ubicaciones`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre, tipo, comisionSocio, metaMensual }) });
-      const r = await res.json();
-      if (!res.ok) { msg("oc-ubic-msg", r.error, "var(--rojo)"); return; }
-      $("oc-ubic-nombre").value = ""; $("oc-ubic-comision").value = ""; $("oc-ubic-meta").value = "";
-      msg("oc-ubic-msg", `"${r.nombre}" creada.`, "var(--verde)");
-      renderUbicaciones();
-      if (window.cargarUbicaciones) window.cargarUbicaciones();
-    });
+    // FIX (JFC 2026-07-03): el gestor de perchas (crear/renombrar/desactivar)
+    // vivia duplicado aqui en Avanzado ("mala idea mia" -- JFC). Se quito: el
+    // gestor canonico vive en Inventario -> Perchas (mismo alcance + sucursales
+    // + mover/borrar, que este duplicado no tenia). Ver renderPerchaCard()/
+    // cargarPerchas() en index.html.
 
     // --- Transferencias (brote 2) — panel operativo, fuera del candado
     // contable: el dueño necesita aprobar/rechazar rápido, no es info financiera.
@@ -299,39 +253,6 @@
   // cualquiera con el dispositivo del dueño secuestre la cuenta apuntando la
   // recuperación a un correo propio. Si NO hay correo (primera vez), el
   // dueño lo registra libre, sin master. Ver nota larga en crypto-store.js.
-  async function renderUbicaciones() {
-    const cont = $("oc-ubic-lista");
-    if (!cont) return;
-    const lista = await (await fetch(`${API}/ubicaciones?todas=1`)).json();
-    cont.innerHTML = lista.map((u) => `
-      <div class="tag-card" style="display:flex;align-items:center;gap:10px;padding:10px 12px;${u.activa === false ? "opacity:.55;" : ""}">
-        <div style="flex:1;">
-          <strong>${u.nombre}</strong>
-          <span style="font-size:12px;color:var(--ink-soft);"> · ${u.tipo || "propio"}${u.activa === false ? " · DESACTIVADA" : ""}</span>
-        </div>
-        <button data-ubic-renombrar="${u.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--azul-medio);border-radius:5px;background:transparent;color:var(--azul-medio);cursor:pointer;">Renombrar</button>
-        <button data-ubic-toggle="${u.id}" data-activa="${u.activa !== false}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rust);border-radius:5px;background:transparent;color:var(--rust);cursor:pointer;">${u.activa === false ? "Reactivar" : "Desactivar"}</button>
-      </div>`).join("");
-
-    cont.querySelectorAll("[data-ubic-renombrar]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const nuevo = prompt("Nuevo nombre:");
-        if (!nuevo || !nuevo.trim()) return;
-        const res = await fetch(`${API}/ubicaciones/${btn.dataset.ubicRenombrar}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nombre: nuevo.trim() }) });
-        if (res.ok) { renderUbicaciones(); if (window.cargarUbicaciones) window.cargarUbicaciones(); }
-      });
-    });
-    cont.querySelectorAll("[data-ubic-toggle]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const activaAhora = btn.dataset.activa === "true";
-        const accion = activaAhora ? "desactivar" : "activar";
-        if (activaAhora && !confirm("Esta ubicación dejará de recibir ventas nuevas. Su historial se conserva. ¿Continuar?")) return;
-        const res = await fetch(`${API}/ubicaciones/${btn.dataset.ubicToggle}/${accion}`, { method: "POST" });
-        if (res.ok) { renderUbicaciones(); if (window.cargarUbicaciones) window.cargarUbicaciones(); }
-      });
-    });
-  }
-
   async function renderTransferencias() {
     const cont = $("oc-transf-lista");
     if (!cont) return;
