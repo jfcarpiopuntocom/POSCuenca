@@ -101,6 +101,7 @@
           <!-- badge % meta, esquina inferior izquierda (spec JFC) -->
           <span style="position:absolute;bottom:10px;left:10px;font-family:var(--font-mono);font-size:13px;
             font-weight:700;background:rgba(0,0,0,.65);color:#fff;padding:4px 10px;border-radius:20px;">${badgeMeta}</span>
+          ${(p.diasSinVenta != null && p.diasSinVenta >= 7) ? `<span style="position:absolute;top:10px;left:10px;font-family:var(--font-mono);font-size:12px;font-weight:700;background:#E53935;color:#fff;padding:3px 9px;border-radius:20px;">dormida ${p.diasSinVenta}d</span>` : ''}
           ${esDueno ? `<span style="position:absolute;bottom:10px;right:10px;font-size:16px;
             background:rgba(0,0,0,.55);padding:5px 8px;border-radius:8px;">📷</span>` : ''}
         </div>
@@ -141,6 +142,7 @@
           meta: f ? f.metaMensual : (u.metaMensual || 0),
           comision: f ? f.comisionSocio : 0,
           promotor: u.promotoraId ? (promPor[u.promotoraId] || null) : null,
+          diasSinVenta: f ? f.diasSinVenta : null,   // rec 05: alerta de dormida
         };
       });
       ms.sort((a, b) => (ORDEN[a.semaforo] ?? 5) - (ORDEN[b.semaforo] ?? 5));

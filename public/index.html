@@ -1881,28 +1881,75 @@ async function cargarActividad(){
 // --- VISTA COMISIONES (revenue sharing a promotores/promotoras) ---
 async function cargarComisiones(){
   const cont = document.getElementById("listaComisiones");
-  const filas = await (await fetch(`${API}/liquidaciones`)).json();
+  const [filas, ranking] = await Promise.all([
+    fetch(`${API}/liquidaciones`).then(r => r.json()),
+    fetch(`${API}/promotores/desempeno`).then(r => r.json()).catch(() => []),
+  ]);
+  // Rec 03: botón que arma el resumen del día y lo abre en WhatsApp listo.
+  const btnWA = `<button class="ir" style="margin-bottom:16px;background:#25D366;color:#fff;border-color:#1da851;" onclick="enviarResumenWhatsApp()">Enviar resumen por WhatsApp</button>`;
+
   if (filas.length === 0){
-    /* FIX 2026-07-02: decía "Avanzado → Perchas" pero el gestor de perchas
-       vive en Inventario (2da sección). También se elimina "ubicaciones". */
-    cont.innerHTML = `<p>Todavía no tienes perchas que generen comisión (socio, franquicia o consignación). Créalas en Inventario → Perchas.</p>`;
+    cont.innerHTML = btnWA + `<p>Todavía no tienes perchas que generen comisión (socio, franquicia o consignación). Créalas en Inventario → Perchas.</p>`;
     return;
   }
-  cont.innerHTML = filas.map(f => `
+
+  // Rec 04 + 09: ranking de promotores con su mejor SKU y alerta de dormido.
+  const rankHtml = (Array.isArray(ranking) && ranking.length) ? `
+    <h3 class="seccion" style="font-size:15px;margin-top:0;">Ranking de promotores</h3>
+    <div style="margin-bottom:20px;">${ranking.map((r, i) => {
+      const med = ["🥇","🥈","🥉"][i] || `${i + 1}.`;
+      const dormido = (r.diasSinVenta != null && r.diasSinVenta >= 7)
+        ? `<span class="badge-estado rojo" style="margin-left:8px;font-size:11px;">dormido ${r.diasSinVenta}d</span>` : "";
+      const top = r.topSku ? ` · mejor SKU: ${escHtml(r.topSku.sku)} (${r.topSku.unidades}u)` : "";
+      return `<div class="tag-card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px;">
+        <span style="font-size:20px;line-height:1;">${med}</span>
+        <div style="flex:1;"><strong>${escHtml(r.nombre)}</strong>${dormido}
+          <div style="font-size:13px;color:var(--ink-soft);">${r.ventasCount} u vendidas · bruto ${fmtMoney(r.ventasBrutas)}${top}</div></div>
+        <strong style="color:var(--verde,#2f7a4f);font-size:17px;">${fmtMoney(r.comision)}</strong>
+      </div>`;
+    }).join("")}</div>` : "";
+
+  const cardsHtml = filas.map(f => {
+    const dormida = (f.diasSinVenta != null && f.diasSinVenta >= 7)
+      ? `<span class="badge-estado rojo" style="font-size:11px;">dormida ${f.diasSinVenta}d</span>` : "";
+    return `
     <div class="tag-card" style="text-align:left;margin-bottom:12px;padding:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-        <strong style="font-size:16px;">${f.ubicacion}</strong>
-        <span class="badge-estado ${f.estado === "pagado" ? "verde" : f.estado === "sin ventas" ? "amarillo" : "rojo"}">${f.estado}</span>
+        <strong style="font-size:16px;">${escHtml(f.ubicacion)}</strong>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${dormida}<span class="badge-estado ${f.estado === "pagado" ? "verde" : f.estado === "sin ventas" ? "amarillo" : "rojo"}">${f.estado}</span></div>
       </div>
-      ${f.metaMensual ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:4px;">Meta del mes: ${fmtMoney(f.metaMensual)} · Cumplido: ${f.cumplimientoMeta}%</div>` : ""}
+      ${f.promotorNombre ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:4px;">Promotor/a: <strong>${escHtml(f.promotorNombre)}</strong></div>` : ""}
+      ${f.metaMensual ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:2px;">Meta del mes: ${fmtMoney(f.metaMensual)} · Cumplido: ${f.cumplimientoMeta}%</div>` : ""}
       <table style="width:100%;margin-top:10px;font-size:14px;">
         <tr><td>Ventas del mes</td><td style="text-align:right;">${fmtMoney(f.ventasBrutas)}</td></tr>
         <tr><td><strong>Comisión del promotor/promotora</strong></td><td style="text-align:right;"><strong>${fmtMoney(f.comisionSocio)}</strong></td></tr>
         <tr><td>Neto para el dueño</td><td style="text-align:right;">${fmtMoney(f.netoDueno)}</td></tr>
       </table>
       ${f.estado === "pendiente" ? `<button class="ir" style="margin-top:10px;background:var(--verde,#2f7a4f);color:#fff;border-color:var(--verde,#2f7a4f);" onclick="marcarComisionPagada('${f.ubicacionId}')">✓ Marcar como pagado (${f.ventasPendientes} ventas)</button>` : ""}
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
+
+  cont.innerHTML = btnWA + rankHtml + cardsHtml;
+}
+
+// Rec 03: arma el resumen del día y lo abre en WhatsApp (wa.me, sin servidor).
+// Ventas de hoy + comisiones pendientes + stock crítico. El dueño solo elige
+// a quién enviarlo. La app le habla; no tiene que abrir nada más.
+async function enviarResumenWhatsApp(){
+  const [dash, liq] = await Promise.all([
+    fetch(`${API}/dashboard?ubicacionId=${ubicacionActual}`).then(r => r.json()).catch(() => ({})),
+    fetch(`${API}/liquidaciones`).then(r => r.json()).catch(() => []),
+  ]);
+  const rd = dash.resumenDia || {};
+  const pend = (Array.isArray(liq) ? liq : []).filter(f => f.estado === "pendiente");
+  const totalPend = pend.reduce((a, f) => a + (f.comisionSocio || 0), 0);
+  const criticos = (dash.alertas || []).filter(a => a.estado === "rojo").slice(0, 3).map(a => a.mensaje);
+  const L = ["*Resumen del día — Amigable*"];
+  L.push(`Ventas de hoy: ${fmtMoney(rd.entra || 0)} en ${rd.ventasCount || 0} venta(s).`);
+  if (totalPend > 0) L.push(`Comisiones pendientes: ${fmtMoney(totalPend)} (${pend.length} percha/s).`);
+  if (criticos.length){ L.push("Stock crítico:"); criticos.forEach(c => L.push("• " + c)); }
+  else L.push("Sin stock crítico. Todo en orden.");
+  window.open("https://wa.me/?text=" + encodeURIComponent(L.join("\n")), "_blank");
 }
 
 async function marcarComisionPagada(ubicacionId){

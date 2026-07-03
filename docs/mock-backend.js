@@ -133,12 +133,17 @@
       const comisionSocio = ventasMes.reduce((a, v) => a + v.split.montoComisionSocio, 0);
       const netoDueno = ventasMes.reduce((a, v) => a + v.split.montoNetoDueno, 0);
       const pendientes = ventasMes.filter((v) => !v.liquidada);
+      // Dias desde la ultima venta de esta percha (rec 05: promotor dormido).
+      const ultima = ventas.filter((v) => v.ubicacionId === u.id).reduce((mx, v) => (v.fecha > mx ? v.fecha : mx), "");
+      const diasSinVenta = ultima ? Math.floor((Date.now() - new Date(ultima).getTime()) / 86400000) : null;
+      const prom = u.promotoraId ? promotoras.find((x) => x.id === u.promotoraId) : null;
       return {
         ubicacionId: u.id, ubicacion: u.nombre, tipo: u.tipo, metaMensual: u.metaMensual || 0,
         cumplimientoMeta: u.metaMensual ? +((ventasBrutas / u.metaMensual) * 100).toFixed(1) : null,
         ventasBrutas: +ventasBrutas.toFixed(2), comisionSocio: +comisionSocio.toFixed(2), netoDueno: +netoDueno.toFixed(2),
         estado: ventasMes.length === 0 ? "sin ventas" : pendientes.length === 0 ? "pagado" : "pendiente",
         ventasPendientes: pendientes.length,
+        diasSinVenta, promotorNombre: prom ? prom.nombre : null,
       };
     });
   }
@@ -304,6 +309,29 @@
         return J({ ok: true });
       }
 
+      // Desempeno por promotor/a: agrega las perchas que tiene asignadas,
+      // suma comision y ventas del mes, y saca su mejor SKU (rec 04 + 09).
+      if (path === "/api/promotores/desempeno") {
+        const byId = {};
+        ubicaciones.filter((u) => u.promotoraId).forEach((u) => {
+          const pr = promotoras.find((x) => x.id === u.promotoraId); if (!pr) return;
+          const g = byId[pr.id] || (byId[pr.id] = { id: pr.id, nombre: pr.nombre, ventasBrutas: 0, ventasCount: 0, comision: 0, ultima: "", porSku: {} });
+          ventas.filter((v) => v.ubicacionId === u.id && esDelMesActual(v.fecha) && v.split).forEach((v) => {
+            g.ventasBrutas += v.split.montoBruto;
+            g.comision += v.split.montoComisionSocio;
+            g.ventasCount += v.cantidad;
+            if (v.fecha > g.ultima) g.ultima = v.fecha;
+            const prod = productos.find((x) => x.id === v.productoId);
+            const sku = prod ? prod.sku : v.productoId;
+            g.porSku[sku] = (g.porSku[sku] || 0) + v.cantidad;
+          });
+        });
+        const arr = Object.values(byId).map((g) => {
+          const top = Object.entries(g.porSku).sort((a, b) => b[1] - a[1])[0];
+          return { id: g.id, nombre: g.nombre, ventasBrutas: +g.ventasBrutas.toFixed(2), ventasCount: g.ventasCount, comision: +g.comision.toFixed(2), diasSinVenta: g.ultima ? Math.floor((Date.now() - new Date(g.ultima).getTime()) / 86400000) : null, topSku: top ? { sku: top[0], unidades: top[1] } : null };
+        }).sort((a, b) => b.ventasBrutas - a.ventasBrutas);
+        return J(arr);
+      }
       if (path === "/api/dashboard") {
         const ps = filtrar(uid), vh = ventasHoyDe(uid);
         const entra = vh.reduce((a, v) => a + v.precioUnit * v.cantidad, 0);
