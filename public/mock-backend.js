@@ -31,6 +31,7 @@
           "activa": true,
           "tipo": "socio",
           "sucursalId": "suc02",
+          "promotoraId": "pr01",
           "comisionSocio": 25,
           "metaMensual": 300,
           "escalasComision": [
@@ -58,6 +59,7 @@
           "activa": true,
           "tipo": "consignacion",
           "sucursalId": "suc03",
+          "promotoraId": "pr02",
           "comisionSocio": 30,
           "metaMensual": 200,
           "escalasComision": []
@@ -65,6 +67,12 @@
   ];
   // Sucursales: agrupadores backend de perchas. En la UI el usuario ve PERCHAS;
   // la sucursal es el encabezado de sección en el gestor de perchas (Inventario).
+  // Promotores/promotoras: personas que traen gente (turistas, recomendados,
+  // familiares) y llevan comision. Se asignan por percha (promotoraId).
+  const promotoras = [
+    { id: "pr01", nombre: "Maria Auquilla", comision: 10 },
+    { id: "pr02", nombre: "Carlos Once", comision: 8 },
+  ];
   const sucursales = [
     { id: "suc01", nombre: "Centro Histórico",          activa: true },
     { id: "suc02", nombre: "Mercado 10 de Agosto",      activa: true },
@@ -231,6 +239,7 @@
         if (body.nombre && body.nombre.trim()) u.nombre = body.nombre.trim();
         if (body.tipo) u.tipo = body.tipo;
         if ("sucursalId" in body) u.sucursalId = body.sucursalId || null;
+        if ("promotoraId" in body) u.promotoraId = body.promotoraId || null;
         return J(u);
       }
       if ((m = path.match(/^\/api\/ubicaciones\/([^/]+)\/(activar|desactivar)$/))) {
@@ -250,6 +259,25 @@
         delete gastosMensuales[u.id];
         mov("ubicacion-borrada", { ubicacion: u.nombre, productosBorrados });
         return J({ ok: true, productosBorrados });
+      }
+      // ---- Promotores/promotoras (comision por traer gente) ----
+      if (path === "/api/promotoras" && (!opts || opts.method !== "POST")) return J(promotoras);
+      if (path === "/api/promotoras" && opts && opts.method === "POST") {
+        if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre es obligatorio." }, 400);
+        const nuevaProm = { id: "pr" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), comision: Number(body.comision) || 0 };
+        promotoras.push(nuevaProm);
+        mov("promotora-alta", { promotora: nuevaProm.nombre });
+        return J(nuevaProm);
+      }
+      const mProm = path.match(/^\/api\/promotoras\/([^/]+)$/);
+      if (mProm && opts && opts.method === "DELETE") {
+        const idxP = promotoras.findIndex((x) => x.id === mProm[1]);
+        if (idxP < 0) return J({ error: "Promotor/a no encontrado." }, 404);
+        const prb = promotoras.splice(idxP, 1)[0];
+        // Desasignar de las perchas que lo tenian
+        ubicaciones.forEach((u) => { if (u.promotoraId === prb.id) u.promotoraId = null; });
+        mov("promotora-baja", { promotora: prb.nombre });
+        return J({ ok: true });
       }
       // ---- Sucursales (agrupadores backend de perchas) ----
       if (path === "/api/sucursales" && (!opts || opts.method !== "POST")) return J(sucursales);
