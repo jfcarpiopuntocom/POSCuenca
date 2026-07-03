@@ -123,6 +123,7 @@
      botón Comisiones (datos financieros del dueño). Mantener sincronizado con
      el data-vista del nav en index.html. */
   body.rol-empleado nav button[data-vista="avanzado"],
+  body.rol-empleado nav button[data-vista="perchas"],
   body.rol-empleado nav button[data-vista="comisiones"]{display:none!important;}
   #oc-acct-lock{text-align:center;padding:22px;}
   #oc-acct-lock button{font-family:var(--font-display,sans-serif);font-size:14px;padding:12px 20px;
