@@ -12,7 +12,7 @@
 //   - semáforo por CUMPLIMIENTO DE META: verde ≥100% · amarillo 70-99% ·
 //     rojo <70% · azul sin meta.
 //   - badge inferior izquierdo: "% meta cumplida"; badge "dormida Xd" si aplica.
-//   - fila de datos (Ventas/Meta/Comisión/Promotor): SOLO dueño.
+//   - fila de datos (Ventas/Meta/Comisión/Promotora/e): SOLO dueño.
 //
 // INTEGRACIÓN: el botón nav data-vista="perchas" y la sección #vista-perchas
 // viven ESTÁTICOS en index.html. refrescarVistaActiva() llama VPerchas.cargar().
@@ -86,7 +86,7 @@
           <strong style="font-size:16px;color:var(--ink);">${p.meta ? money(p.meta) : '—'}</strong></div>
         <div><span style="font-size:11px;font-family:var(--font-mono);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;display:block;">Comisión</span>
           <strong style="font-size:16px;color:var(--ink);">${money(p.comision)}</strong></div>
-        <div><span style="font-size:11px;font-family:var(--font-mono);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;display:block;">Promotor/a</span>
+        <div><span style="font-size:11px;font-family:var(--font-mono);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;display:block;">Promotora/e</span>
           <strong style="font-size:16px;color:var(--ink);">${p.promotor ? esc(p.promotor) : '—'}</strong></div>
       </div>` : '';
 

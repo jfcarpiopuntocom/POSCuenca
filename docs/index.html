@@ -1009,7 +1009,7 @@
   <!-- VISTA: COMISIONES (solo dueño) -->
   <section id="vista-comisiones" class="vista">
     <h3 class="seccion" style="margin-top:0;">Comisiones</h3>
-    <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Lo que le debes a cada promotor/promotora este mes, calculado venta por venta — sin Excel, sin sorpresas.</p>
+    <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Lo que le debes a cada promotora/e este mes, calculado venta por venta — sin Excel, sin sorpresas.</p>
     <div id="listaComisiones"></div>
   </section>
 
@@ -1349,7 +1349,7 @@ function renderPerchaCard(u, sucursalesDisp, promotorasDisp) {
         <select data-percha-mover="${u.id}" style="font-size:12px;padding:4px 6px;border:1px solid var(--azul-medio);border-radius:4px;margin-left:4px;">
           <option value="">— Sin sucursal —</option>${optsS}
         </select></label>
-      <label style="font-size:12px;color:var(--ink-soft);">Promotor/a:
+      <label style="font-size:12px;color:var(--ink-soft);">Promotora/e:
         <select data-percha-promotor="${u.id}" style="font-size:12px;padding:4px 6px;border:1px solid var(--azul-medio);border-radius:4px;margin-left:4px;">
           <option value="">— Ninguno —</option>${(promotorasDisp||[]).map(pr => `<option value="${pr.id}"${u.promotoraId === pr.id ? ' selected' : ''}>${escHtml(pr.nombre)}</option>`).join('')}
         </select></label>
@@ -1458,7 +1458,7 @@ async function cargarPerchas(){
     const res = await fetch(`${API}/ubicaciones/${sel.dataset.perchaMover}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ sucursalId }) });
     if (res.ok) cargarPerchas();
   }));
-  // Asignar promotor/a a la percha (alimenta el panel de fotos y comisiones)
+  // Asignar promotora/e a la percha (alimenta el panel de fotos y comisiones)
   grid.querySelectorAll('[data-percha-promotor]').forEach(sel => sel.addEventListener('change', async () => {
     const promotoraId = sel.value || null;
     const res = await fetch(`${API}/ubicaciones/${sel.dataset.perchaPromotor}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ promotoraId }) });
@@ -1976,7 +1976,7 @@ async function cargarActividad(){
   `).join("");
 }
 
-// --- VISTA COMISIONES (revenue sharing a promotores/promotoras) ---
+// --- VISTA COMISIONES (revenue sharing a promotoras/es) ---
 async function cargarComisiones(){
   const cont = document.getElementById("listaComisiones");
   const [filas, ranking] = await Promise.all([
@@ -1991,9 +1991,9 @@ async function cargarComisiones(){
     return;
   }
 
-  // Rec 04 + 09: ranking de promotores con su mejor SKU y alerta de dormido.
+  // Rec 04 + 09: ranking de promotoras/es con su mejor SKU y alerta de dormido.
   const rankHtml = (Array.isArray(ranking) && ranking.length) ? `
-    <h3 class="seccion" style="font-size:15px;margin-top:0;">Ranking de promotores</h3>
+    <h3 class="seccion" style="font-size:15px;margin-top:0;">Ranking de promotoras/es</h3>
     <div style="margin-bottom:20px;">${ranking.map((r, i) => {
       const med = ["🥇","🥈","🥉"][i] || `${i + 1}.`;
       const dormido = (r.diasSinVenta != null && r.diasSinVenta >= 7)
@@ -2016,11 +2016,11 @@ async function cargarComisiones(){
         <strong style="font-size:16px;">${escHtml(f.ubicacion)}</strong>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">${dormida}<span class="badge-estado ${f.estado === "pagado" ? "verde" : f.estado === "sin ventas" ? "amarillo" : "rojo"}">${f.estado}</span></div>
       </div>
-      ${f.promotorNombre ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:4px;">Promotor/a: <strong>${escHtml(f.promotorNombre)}</strong></div>` : ""}
+      ${f.promotorNombre ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:4px;">Promotora/e: <strong>${escHtml(f.promotorNombre)}</strong></div>` : ""}
       ${f.metaMensual ? `<div style="font-size:13px;color:var(--ink-soft);margin-top:2px;">Meta del mes: ${fmtMoney(f.metaMensual)} · Cumplido: ${f.cumplimientoMeta}%</div>` : ""}
       <table style="width:100%;margin-top:10px;font-size:14px;">
         <tr><td>Ventas del mes</td><td style="text-align:right;">${fmtMoney(f.ventasBrutas)}</td></tr>
-        <tr><td><strong>Comisión del promotor/promotora</strong></td><td style="text-align:right;"><strong>${fmtMoney(f.comisionSocio)}</strong></td></tr>
+        <tr><td><strong>Comisión de la promotora/e</strong></td><td style="text-align:right;"><strong>${fmtMoney(f.comisionSocio)}</strong></td></tr>
         <tr><td>Neto para el dueño</td><td style="text-align:right;">${fmtMoney(f.netoDueno)}</td></tr>
       </table>
       ${f.estado === "pendiente" ? `<button class="ir" style="margin-top:10px;background:var(--verde,#2f7a4f);color:#fff;border-color:var(--verde,#2f7a4f);" onclick="marcarComisionPagada('${f.ubicacionId}')">✓ Marcar como pagado (${f.ventasPendientes} ventas)</button>` : ""}
@@ -2051,7 +2051,7 @@ async function enviarResumenWhatsApp(){
 }
 
 async function marcarComisionPagada(ubicacionId){
-  if (!confirm("¿Confirmas que ya le pagaste al promotor/promotora lo que corresponde este mes?")) return;
+  if (!confirm("¿Confirmas que ya le pagaste a la promotora/e lo que corresponde este mes?")) return;
   const res = await fetch(`${API}/liquidaciones/${ubicacionId}/marcar-pagado`, { method: "POST" });
   if (res.ok) cargarComisiones();
 }

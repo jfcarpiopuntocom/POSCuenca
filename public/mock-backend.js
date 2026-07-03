@@ -67,7 +67,7 @@
   ];
   // Sucursales: agrupadores backend de perchas. En la UI el usuario ve PERCHAS;
   // la sucursal es el encabezado de sección en el gestor de perchas (Inventario).
-  // Promotores/promotoras: personas que traen gente (turistas, recomendados,
+  // Promotoras/es: personas que traen gente (turistas, recomendados,
   // familiares) y llevan comision. Se asignan por percha (promotoraId).
   const promotoras = [
     { id: "pr01", nombre: "Maria Auquilla", comision: 10 },
@@ -133,7 +133,7 @@
       const comisionSocio = ventasMes.reduce((a, v) => a + v.split.montoComisionSocio, 0);
       const netoDueno = ventasMes.reduce((a, v) => a + v.split.montoNetoDueno, 0);
       const pendientes = ventasMes.filter((v) => !v.liquidada);
-      // Dias desde la ultima venta de esta percha (rec 05: promotor dormido).
+      // Dias desde la ultima venta de esta percha (rec 05: promotora/e dormida).
       const ultima = ventas.filter((v) => v.ubicacionId === u.id).reduce((mx, v) => (v.fecha > mx ? v.fecha : mx), "");
       const diasSinVenta = ultima ? Math.floor((Date.now() - new Date(ultima).getTime()) / 86400000) : null;
       const prom = u.promotoraId ? promotoras.find((x) => x.id === u.promotoraId) : null;
@@ -271,7 +271,7 @@
         mov("ubicacion-borrada", { ubicacion: u.nombre, productosBorrados });
         return J({ ok: true, productosBorrados });
       }
-      // ---- Promotores/promotoras (comision por traer gente) ----
+      // ---- Promotoras/es (comision por traer gente) ----
       if (path === "/api/promotoras" && (!opts || opts.method !== "POST")) return J(promotoras);
       if (path === "/api/promotoras" && opts && opts.method === "POST") {
         if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre es obligatorio." }, 400);
@@ -283,7 +283,7 @@
       const mProm = path.match(/^\/api\/promotoras\/([^/]+)$/);
       if (mProm && opts && opts.method === "DELETE") {
         const idxP = promotoras.findIndex((x) => x.id === mProm[1]);
-        if (idxP < 0) return J({ error: "Promotor/a no encontrado." }, 404);
+        if (idxP < 0) return J({ error: "Promotora/e no encontrada." }, 404);
         const prb = promotoras.splice(idxP, 1)[0];
         // Desasignar de las perchas que lo tenian
         ubicaciones.forEach((u) => { if (u.promotoraId === prb.id) u.promotoraId = null; });
@@ -315,7 +315,7 @@
         return J({ ok: true });
       }
 
-      // Desempeno por promotor/a: agrega las perchas que tiene asignadas,
+      // Desempeno por promotora/e: agrega las perchas que tiene asignadas,
       // suma comision y ventas del mes, y saca su mejor SKU (rec 04 + 09).
       if (path === "/api/promotores/desempeno") {
         const byId = {};
