@@ -254,7 +254,7 @@ function getPromotoresDeUbicacion(ubicacionId) {
   return getPromotores(true).filter((p) => (p.ubicacionesIds || []).includes(ubicacionId));
 }
 function crearPromotor({ nombre, comisionPct, ubicacionesIds }) {
-  if (!nombre || !nombre.trim()) return { error: "El nombre del promotor es obligatorio." };
+  if (!nombre || !nombre.trim()) return { error: "El nombre de la promotora/e es obligatorio." };
   const pct = Number(comisionPct);
   if (!Number.isFinite(pct) || pct < 0 || pct > 100) return { error: "La comisión debe ser un número entre 0 y 100." };
   const p = { id: randomUUID(), nombre: nombre.trim(), comisionPct: pct, activo: true, ubicacionesIds: Array.isArray(ubicacionesIds) ? ubicacionesIds : [] };
@@ -264,7 +264,7 @@ function crearPromotor({ nombre, comisionPct, ubicacionesIds }) {
 }
 function actualizarPromotor(id, { nombre, comisionPct, ubicacionesIds }) {
   const p = db.get("promotores").find({ id }).value();
-  if (!p) return { error: "Promotor no encontrado." };
+  if (!p) return { error: "Promotora/e no encontrada." };
   const cambios = {};
   if (nombre && nombre.trim()) cambios.nombre = nombre.trim();
   if (comisionPct != null) {
@@ -278,7 +278,7 @@ function actualizarPromotor(id, { nombre, comisionPct, ubicacionesIds }) {
 }
 function setActivoPromotor(id, activo) {
   const p = db.get("promotores").find({ id }).value();
-  if (!p) return { error: "Promotor no encontrado." };
+  if (!p) return { error: "Promotora/e no encontrada." };
   db.get("promotores").find({ id }).assign({ activo: !!activo }).write();
   return db.get("promotores").find({ id }).value();
 }
@@ -302,7 +302,7 @@ function getComisionesPromotores() {
 }
 function marcarLiquidadoPromotor(promotorId) {
   const prom = db.get("promotores").find({ id: promotorId }).value();
-  if (!prom) return { error: "Promotor no encontrado." };
+  if (!prom) return { error: "Promotora/e no encontrada." };
   const ventas = db.get("ventas").value().filter((v) => esDelMesActual(v.fecha) && v.split && v.split.promotorId === promotorId && !v.liquidadaPromotor);
   ventas.forEach((v) => db.get("ventas").find({ id: v.id }).assign({ liquidadaPromotor: true }).write());
   registrarMovimiento("liquidacion-promotor", { promotor: prom.nombre, ventasLiquidadas: ventas.length });
