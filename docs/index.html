@@ -948,6 +948,20 @@
         </div>
         <p id="perchaMsg" style="font-size:14px;margin-top:8px;"></p>
       </div>
+      <!-- Modo Feria de fin de semana (rec 10): percha de consignación temporal.
+           Al cerrarla se archiva (conserva historial) y salta a Comisiones. -->
+      <div class="tag-card" style="text-align:left;margin-top:14px;border:2px dashed var(--rust,#b2461f);">
+        <h3 class="seccion" style="margin-top:0;font-size:15px;">Feria de fin de semana</h3>
+        <p style="font-size:14px;color:var(--ink-soft);margin-top:0;">Crea una percha temporal para un evento de 2-3 días. Al cerrarla queda archivada con su historial y ves su liquidación al instante.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <label style="font-size:13px;">Nombre del evento<br>
+            <input id="feriaNombre" type="text" placeholder="Ej: Feria de Otavalo" style="padding:8px;border:2px solid var(--rust);border-radius:5px;font-family:var(--font-mono);width:220px;"></label>
+          <label style="font-size:13px;">Comisión %<br>
+            <input id="feriaComision" type="number" min="0" max="100" placeholder="Ej: 30" style="padding:8px;border:2px solid var(--rust);border-radius:5px;width:90px;"></label>
+          <button id="feriaAbrir" class="ir" style="padding:10px 16px;background:var(--rust,#b2461f);color:#fff;border-color:var(--rust-deep,#8c3416);">Abrir feria</button>
+        </div>
+        <p id="feriaMsg" style="font-size:14px;margin-top:8px;"></p>
+      </div>
     </div>
   </section>
 
@@ -1262,10 +1276,10 @@ function renderPerchaCard(u, sucursalesDisp, promotorasDisp) {
   ).join('');
   return `<div class="tag-card" style="text-align:left;padding:14px;margin-bottom:8px;${inactiva ? 'opacity:.65;' : ''}">
     <strong style="font-size:16px;color:var(--ink);">${escHtml(u.nombre)}</strong>
-    <div style="font-size:13px;color:var(--ink-soft);margin:4px 0 10px;">${tipoLabel}${comLabel}${inactiva ? ' · DESACTIVADA' : ''}</div>
+    <div style="font-size:13px;color:var(--ink-soft);margin:4px 0 10px;">${tipoLabel}${comLabel}${u.esFeria ? ' · <strong style="color:var(--rust,#b2461f);">FERIA</strong>' : ''}${inactiva ? ' · DESACTIVADA' : ''}</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <button data-percha-renombrar="${u.id}" style="font-size:13px;padding:6px 10px;border:2px solid var(--azul-medio);border-radius:5px;background:transparent;color:var(--azul-medio);cursor:pointer;">Renombrar</button>
-      <button data-percha-toggle="${u.id}" data-activa="${u.activa !== false}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rust);border-radius:5px;background:transparent;color:var(--rust);cursor:pointer;">${inactiva ? 'Reactivar' : 'Desactivar'}</button>
+      <button data-percha-toggle="${u.id}" data-activa="${u.activa !== false}" data-feria="${u.esFeria ? '1' : ''}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rust);border-radius:5px;background:transparent;color:var(--rust);cursor:pointer;">${inactiva ? 'Reactivar' : (u.esFeria ? 'Cerrar y liquidar' : 'Desactivar')}</button>
       <button data-percha-borrar="${u.id}" data-nombre="${escHtml(u.nombre)}" style="font-size:13px;padding:6px 10px;border:2px solid var(--rojo,#a3392a);border-radius:5px;background:transparent;color:var(--rojo,#a3392a);cursor:pointer;">Borrar</button>
       <label style="font-size:12px;color:var(--ink-soft);">Mover a:
         <select data-percha-mover="${u.id}" style="font-size:12px;padding:4px 6px;border:1px solid var(--azul-medio);border-radius:4px;margin-left:4px;">
@@ -1356,10 +1370,18 @@ async function cargarPerchas(){
   }));
   grid.querySelectorAll('[data-percha-toggle]').forEach(btn => btn.addEventListener('click', async () => {
     const activaAhora = btn.dataset.activa === 'true';
-    if (activaAhora && !confirm('Esta percha dejará de recibir ventas nuevas. Su historial se conserva. ¿Continuar?')) return;
+    const esFeria = btn.dataset.feria === '1';
+    const aviso = esFeria
+      ? 'Se cerrará la feria: deja de recibir ventas y verás su liquidación. Su historial se conserva. ¿Continuar?'
+      : 'Esta percha dejará de recibir ventas nuevas. Su historial se conserva. ¿Continuar?';
+    if (activaAhora && !confirm(aviso)) return;
     const accion = activaAhora ? 'desactivar' : 'activar';
     const res = await fetch(`${API}/ubicaciones/${btn.dataset.perchaToggle}/${accion}`, { method:'POST' });
-    if (res.ok){ cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones(); }
+    if (res.ok){
+      cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones();
+      // Rec 10: cerrar feria -> mostrar su liquidación al instante.
+      if (esFeria && activaAhora){ const nav = document.querySelector('nav button[data-vista="comisiones"]'); if (nav) nav.click(); }
+    }
   }));
   grid.querySelectorAll('[data-percha-borrar]').forEach(btn => btn.addEventListener('click', async () => {
     if (!confirm(`Borrar la percha "${btn.dataset.nombre}" y TODOS sus productos. Esto no se puede deshacer. ¿Seguro?`)) return;
@@ -1392,6 +1414,18 @@ document.addEventListener('click', async (e) => {
     document.getElementById('sucursalNombre').value='';
     msg.style.color='var(--verde,#2f7a4f)'; msg.textContent=`Sucursal "${r.nombre}" creada.`;
     cargarPerchas();
+    return;
+  }
+  if (e.target.id === 'feriaAbrir') {
+    const nombre = document.getElementById('feriaNombre').value.trim();
+    const comisionSocio = document.getElementById('feriaComision').value;
+    const msg = document.getElementById('feriaMsg');
+    if (!nombre){ msg.style.color='var(--rojo,#a3392a)'; msg.textContent='El nombre del evento es obligatorio.'; return; }
+    const res = await fetch(`${API}/ubicaciones`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nombre: 'Feria: ' + nombre, tipo:'consignacion', comisionSocio, esFeria:true }) });
+    const r = await res.json(); if (!res.ok){ msg.style.color='var(--rojo,#a3392a)'; msg.textContent=r.error; return; }
+    document.getElementById('feriaNombre').value=''; document.getElementById('feriaComision').value='';
+    msg.style.color='var(--verde,#2f7a4f)'; msg.textContent=`Feria "${r.nombre}" abierta. Asígnale productos en Inventario y, al terminar, ciérrala desde su tarjeta.`;
+    cargarPerchas(); if (window.cargarUbicaciones) window.cargarUbicaciones();
     return;
   }
   if (e.target.id === 'perchaCrear') {

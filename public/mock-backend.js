@@ -234,7 +234,7 @@
       }
       if (path === "/api/ubicaciones" && opts && opts.method === "POST") {
         if (!body.nombre || !body.nombre.trim()) return J({ error: "El nombre de la ubicación es obligatorio." }, 400);
-        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true, comisionSocio: Number(body.comisionSocio) || 0, metaMensual: Number(body.metaMensual) || 0, escalasComision: Array.isArray(body.escalasComision) ? body.escalasComision : [], sucursalId: body.sucursalId || null };
+        const nueva = { id: "u" + Math.random().toString(36).slice(2, 9), nombre: body.nombre.trim(), tipo: body.tipo || "propio", activa: true, comisionSocio: Number(body.comisionSocio) || 0, metaMensual: Number(body.metaMensual) || 0, escalasComision: Array.isArray(body.escalasComision) ? body.escalasComision : [], sucursalId: body.sucursalId || null, esFeria: !!body.esFeria };
         ubicaciones.push(nueva);
         mov("ubicacion-alta", { ubicacion: nueva.nombre });
         return J(nueva);
