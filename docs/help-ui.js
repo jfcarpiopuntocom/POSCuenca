@@ -43,8 +43,8 @@
     <span class="rolTag">Guía del dueño</span>
     <h3>Los colores son el idioma de tu negocio</h3>
     <p style="font-size:14px;line-height:1.6;margin:0 0 10px;">
-      AMIGABLE convierte los números en colores para que no tengas que interpretar nada —
-      el color ya te dice qué hacer. No necesitas saber de contabilidad para entenderlo.
+      Tu negocio habla en colores. Verde: todo bien. Rojo: actúa ya. Dorado: hay plata ahí.
+      Sin hoja de cálculo, sin terminología contable.
     </p>
     <ul>
       <li><b style="color:#16A34A;">Verde</b>: saludable — fluye bien, no tocar.</li>
